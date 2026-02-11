@@ -1,5 +1,5 @@
 {
-  "name": "Distribuicao Multi-Canal (com Imagem Branded)",
+  "name": "Distribuicao Multi-Canal (com Card Branded)",
   "nodes": [
     {
       "parameters": {
@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const post = $input.first().json;\n\nconst titulo = post.post_title || post.title?.rendered || '';\nconst link = post.guid || post.link || '';\nconst excerpt = (post.post_excerpt || post.excerpt?.rendered || '').replace(/<[^>]*>/g, '').substring(0, 200);\nconst featuredImage = post.featured_image_url || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';\nconst categories = (post.categories_names || []);\nconst editoria = categories[0] || 'Noticias';\nconst autor = post.author_name || 'Redacao';\nconst tags = (post.tags_names || []);\n\n// Hashtags a partir de categorias + tags\nconst hashtags = ['JornalEspacoDoPovo', 'Periferia', ...categories, ...tags]\n  .map(t => '#' + t.replace(/[^a-zA-Z0-9\\u00C0-\\u024F]/g, ''))\n  .filter((v, i, a) => a.indexOf(v) === i)\n  .slice(0, 12)\n  .join(' ');\n\nreturn [{\n  json: {\n    titulo,\n    link,\n    excerpt,\n    featuredImage,\n    editoria,\n    autor,\n    categories: categories.join(', '),\n    hashtags,\n    post_id: post.ID || post.id\n  }\n}];"
+        "jsCode": "const post = $input.first().json;\n\nconst titulo = post.post_title || post.title?.rendered || '';\nconst link = post.guid || post.link || '';\nconst excerpt = (post.post_excerpt || post.excerpt?.rendered || '').replace(/<[^>]*>/g, '').substring(0, 200);\nconst featuredImage = post.featured_image_url || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';\nconst categories = (post.categories_names || []);\nconst editoria = categories[0] || 'Noticias';\nconst autor = post.author_name || 'Redacao';\nconst tags = (post.tags_names || []);\nconst tipo = (post.post_type_label || 'noticia').toLowerCase();\n\nconst hashtags = ['EspacoDoPovo', 'Periferia', ...categories, ...tags]\n  .map(t => '#' + t.replace(/[^a-zA-Z0-9\\u00C0-\\u024F]/g, ''))\n  .filter((v, i, a) => a.indexOf(v) === i)\n  .slice(0, 12)\n  .join(' ');\n\nreturn [{\n  json: {\n    titulo, link, excerpt, featuredImage, editoria, autor, tipo,\n    categories: categories.join(', '),\n    hashtags,\n    post_id: post.ID || post.id\n  }\n}];"
       },
       "id": "prepare-data",
       "name": "Extrair Dados do Post",
@@ -26,13 +26,14 @@
     },
     {
       "parameters": {
-        "jsCode": "const d = $input.first().json;\n\nconst titulo = d.titulo || 'Titulo da Materia';\nconst editoria = (d.editoria || 'Noticias').toUpperCase();\nconst autor = d.autor || 'Redacao';\nconst imagemFundo = d.featuredImage || '';\nconst dataPublicacao = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });\n\nconst coresEditoria = {\n  'SAUDE': '#2ecc71', 'EDUCACAO': '#3498db', 'TRANSPORTE': '#e67e22',\n  'CULTURA': '#9b59b6', 'ESPORTE': '#e74c3c', 'HISTORIA': '#f39c12',\n  'SERVICOS': '#1abc9c', 'GASTRONOMIA': '#e74c3c', 'EVENTOS': '#8e44ad',\n  'MEIO-AMBIENTE': '#27ae60', 'EMPREENDEDORISMO': '#2c3e50',\n  'NOTICIAS': '#c0392b', 'CURIOSIDADE': '#f1c40f'\n};\nconst cor = coresEditoria[editoria] || '#c0392b';\n\nconst maxCharsPerLine = 28;\nconst words = titulo.split(' ');\nlet lines = []; let currentLine = '';\nfor (const word of words) {\n  if ((currentLine + ' ' + word).trim().length > maxCharsPerLine) {\n    if (currentLine) lines.push(currentLine.trim());\n    currentLine = word;\n  } else { currentLine = (currentLine + ' ' + word).trim(); }\n}\nif (currentLine) lines.push(currentLine.trim());\nif (lines.length > 4) { lines = lines.slice(0, 4); lines[3] = lines[3].substring(0, 25) + '...'; }\nconst fontSize = lines.length <= 2 ? 48 : lines.length <= 3 ? 40 : 34;\n\nconst html = `<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>\n* { margin:0; padding:0; box-sizing:border-box; }\nbody { width:1200px; height:630px; overflow:hidden; font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; }\n.card { width:1200px; height:630px; position:relative; background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); display:flex; flex-direction:column; justify-content:space-between; }\n${imagemFundo ? `.card::before { content:''; position:absolute; top:0;left:0;right:0;bottom:0; background:url('${imagemFundo}') center/cover; opacity:0.25; z-index:0; }` : ''}\n.card>*{position:relative;z-index:1;}\n.top{display:flex;justify-content:space-between;align-items:center;padding:28px 40px;}\n.logo{display:flex;align-items:center;gap:16px;}\n.logo-icon{width:56px;height:56px;background:#c0392b;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:white;letter-spacing:-2px;}\n.logo-text{color:white;font-size:22px;font-weight:700;line-height:1.1;}\n.logo-text span{display:block;font-size:13px;font-weight:400;opacity:0.7;letter-spacing:2px;text-transform:uppercase;}\n.badge{background:${cor};color:white;padding:8px 24px;border-radius:6px;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;}\n.content{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 60px;}\n.titulo{color:white;font-size:${fontSize}px;font-weight:800;line-height:1.25;text-shadow:0 2px 20px rgba(0,0,0,0.5);max-width:900px;}\n.accent{width:80px;height:5px;background:${cor};border-radius:3px;margin-top:24px;}\n.bottom{display:flex;justify-content:space-between;align-items:center;padding:24px 40px;background:rgba(0,0,0,0.3);border-top:1px solid rgba(255,255,255,0.1);}\n.autor{color:rgba(255,255,255,0.8);font-size:16px;} .autor strong{color:white;}\n.data{color:rgba(255,255,255,0.6);font-size:14px;letter-spacing:1px;}\n.site{color:${cor};font-size:15px;font-weight:600;}\n</style></head><body>\n<div class=\"card\">\n  <div class=\"top\"><div class=\"logo\"><div class=\"logo-icon\">EP</div><div class=\"logo-text\">Espaco do Povo<span>Jornal Comunitario</span></div></div><div class=\"badge\">${editoria}</div></div>\n  <div class=\"content\"><div class=\"titulo\">${lines.join('<br>')}</div><div class=\"accent\"></div></div>\n  <div class=\"bottom\"><div class=\"autor\">Por <strong>${autor}</strong></div><div class=\"data\">${dataPublicacao}</div><div class=\"site\">jornalespacodopovo.com.br</div></div>\n</div></body></html>`;\n\nreturn [{ json: { ...d, cardHtml: html } }];"
+        "jsCode": "const d = $input.first().json;\n\n// === CONSTANTES DA MARCA ===\nconst BRAND = {\n  nome: 'ESPAÇO DO POVO',\n  sub: 'JORNAL COMUNITÁRIO',\n  handle: '@espacodopovo',\n  site: 'www.espacodopovo.com.br',\n  cor: '#c0392b'\n};\n\nconst CORES = {\n  'URGENTE':'#e74c3c','POLITICA':'#2c3e50','SAUDE':'#27ae60','EDUCACAO':'#2980b9',\n  'TRANSPORTE':'#e67e22','CULTURA':'#8e44ad','ESPORTE':'#c0392b','HISTORIA':'#d4a017',\n  'SERVICOS':'#16a085','GASTRONOMIA':'#d35400','EVENTOS':'#8e44ad',\n  'MEIO AMBIENTE':'#27ae60','EMPREENDEDORISMO':'#2c3e50','NOTICIAS':'#c0392b',\n  'CURIOSIDADE':'#f39c12','EDITORIAL':'#1a1a2e','COLUNA':'#34495e'\n};\n\nconst titulo = d.titulo || 'Titulo';\nconst editoria = (d.editoria || 'Noticias').toUpperCase();\nconst autor = d.autor || 'Redacao';\nconst img = d.featuredImage || '';\nconst cor = CORES[editoria] || '#c0392b';\nconst isUrgente = editoria === 'URGENTE';\nconst isColuna = d.tipo === 'coluna' || d.tipo === 'opiniao' || editoria === 'COLUNA' || editoria === 'EDITORIAL';\nconst dataStr = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' });\n\nfunction breakLines(text, max) {\n  const words = text.split(' ');\n  let lines = [], cur = '';\n  for (const w of words) {\n    if ((cur + ' ' + w).trim().length > max) { if (cur) lines.push(cur.trim()); cur = w; }\n    else cur = (cur + ' ' + w).trim();\n  }\n  if (cur) lines.push(cur.trim());\n  if (lines.length > 5) { lines = lines.slice(0,5); lines[4] = lines[4].substring(0,max-3)+'...'; }\n  return lines;\n}\n\n// Gera card para cada formato\nfunction genCard(w, h, fmt) {\n  const isSq = fmt === 'square';\n  const lines = breakLines(titulo, isSq ? 24 : 30);\n  const fs = lines.length <= 2 ? (isSq?52:44) : lines.length <= 3 ? (isSq?44:38) : (isSq?38:34);\n  const pad = isSq ? 44 : 36;\n\n  // Selecao de estilo do card baseado no tipo\n  let bgStyle, overlayStyle, contentAlign, titleFont, extraContent;\n\n  if (isUrgente) {\n    bgStyle = `background:linear-gradient(135deg,#1a0000 0%,#3d0000 30%,#8b0000 100%);`;\n    overlayStyle = img ? `background:url('${img}') center/cover; opacity:0.15;` : '';\n    contentAlign = 'center';\n    titleFont = `font-size:${fs+4}px;`;\n    extraContent = '';\n  } else if (isColuna) {\n    bgStyle = `background:linear-gradient(160deg,#0f0f1a 0%,#1a1a2e 40%,#16213e 100%);`;\n    overlayStyle = '';\n    contentAlign = 'center';\n    titleFont = `font-size:${fs}px; font-style:italic;`;\n    extraContent = `<div style=\"display:flex;align-items:center;gap:14px;justify-content:center;margin-top:20px;\"><div style=\"width:52px;height:52px;border-radius:50%;border:3px solid ${cor};background:${cor};display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:20px;\">${(autor||'R')[0]}</div><div style=\"text-align:left;\"><div style=\"color:white;font-size:${isSq?16:14}px;font-weight:700;\">${autor}</div><div style=\"color:rgba(255,255,255,0.5);font-size:${isSq?12:11}px;\">Colunista</div></div></div>`;\n  } else if (!img) {\n    bgStyle = `background:linear-gradient(160deg,#0a0a14 0%,${cor}22 50%,#0a0a14 100%);`;\n    overlayStyle = '';\n    contentAlign = 'left';\n    titleFont = `font-size:${fs}px;`;\n    extraContent = '';\n  } else {\n    bgStyle = `background:#0a0a0a;`;\n    overlayStyle = `background:url('${img}') center/cover; opacity:0.45;`;\n    contentAlign = 'left';\n    titleFont = `font-size:${fs}px;`;\n    extraContent = `<div style=\"color:rgba(255,255,255,0.75);font-size:${isSq?15:13}px;font-weight:600;margin-top:12px;\">Por ${autor}</div>`;\n  }\n\n  return `<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>\n@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');\n*{margin:0;padding:0;box-sizing:border-box;}\nbody{width:${w}px;height:${h}px;overflow:hidden;font-family:'Inter',sans-serif;}\n.card{width:${w}px;height:${h}px;position:relative;${bgStyle}display:flex;flex-direction:column;justify-content:space-between;}\n.bg{position:absolute;top:0;left:0;right:0;bottom:0;${overlayStyle}}\n.bg::after{content:'';position:absolute;bottom:0;left:0;right:0;height:70%;background:linear-gradient(to top,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.5) 40%,transparent 100%);}\n.card>*{position:relative;z-index:1;}\n.top{display:flex;justify-content:space-between;align-items:flex-start;padding:${pad}px;}\n.logo{display:flex;align-items:center;gap:12px;}\n.logo-i{width:${isSq?50:44}px;height:${isSq?50:44}px;background:${isUrgente?'white':BRAND.cor};border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:${isSq?22:19}px;font-weight:900;color:${isUrgente?BRAND.cor:'white'};}\n.logo-t{color:white;font-weight:800;font-size:${isSq?16:14}px;line-height:1.15;text-transform:uppercase;letter-spacing:1px;}\n.logo-t span{display:block;font-size:${isSq?9:8}px;font-weight:600;opacity:0.5;letter-spacing:2.5px;margin-top:2px;}\n.badge{background:${isUrgente?'white':cor};color:${isUrgente?BRAND.cor:'white'};padding:8px 20px;border-radius:4px;font-size:${isSq?13:11}px;font-weight:800;letter-spacing:3px;text-transform:uppercase;}\n.cnt{flex:1;display:flex;flex-direction:column;justify-content:${contentAlign==='center'?'center':'flex-end'};${contentAlign==='center'?'align-items:center;text-align:center;':''}padding:0 ${pad+16}px ${isSq?20:12}px;}\n.tit{color:white;${titleFont}font-weight:900;line-height:1.18;max-width:${isSq?920:1020}px;text-shadow:0 2px 30px rgba(0,0,0,0.7);}\n.acc{width:60px;height:4px;background:${cor};border-radius:2px;margin-top:${isSq?18:12}px;${contentAlign==='center'?'margin-left:auto;margin-right:auto;':''}}\n.bot{display:flex;justify-content:space-between;align-items:center;padding:${isSq?'18px '+pad+'px 28px':'14px '+pad+'px 20px'};border-top:1px solid rgba(255,255,255,0.08);}\n.handle{color:rgba(255,255,255,0.5);font-size:${isSq?15:13}px;font-weight:600;}\n.url{color:${cor};font-size:${isSq?14:12}px;font-weight:700;}\n</style></head><body>\n<div class=\"card\">\n  <div class=\"bg\"></div>\n  <div class=\"top\">\n    <div class=\"logo\"><div class=\"logo-i\">EP</div><div class=\"logo-t\">${BRAND.nome}<span>${BRAND.sub}</span></div></div>\n    <div class=\"badge\">${isUrgente?'URGENTE':editoria}</div>\n  </div>\n  <div class=\"cnt\">\n    ${isColuna?'<div style=\"font-size:70px;color:'+cor+';opacity:0.35;font-family:Georgia,serif;line-height:0.5;margin-bottom:14px;\">&ldquo;</div>':''}\n    <div class=\"tit\">${lines.join('<br>')}</div>\n    <div class=\"acc\"></div>\n    ${extraContent}\n  </div>\n  <div class=\"bot\">\n    <div class=\"handle\">${BRAND.handle}</div>\n    <div class=\"url\">${BRAND.site}</div>\n  </div>\n</div>\n</body></html>`;\n}\n\n// Gera os 2 formatos\nconst cardSquareHtml = genCard(1080, 1080, 'square');\nconst cardWideHtml = genCard(1200, 630, 'wide');\n\nreturn [{ json: { ...d, cardSquareHtml, cardWideHtml } }];"
       },
-      "id": "gerar-card-html",
-      "name": "Gerar Card HTML",
+      "id": "gerar-cards",
+      "name": "Gerar Cards (2 formatos)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [660, 400]
+      "position": [660, 400],
+      "notes": "Gera automaticamente 2 cards: 1080x1080 (Instagram) e 1200x630 (Facebook/WA/Telegram). Seleciona estilo baseado na editoria: Urgente, Coluna/Opiniao, Com Foto ou Texto Limpo."
     },
     {
       "parameters": {
@@ -49,21 +50,54 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"html\": {{ JSON.stringify($json.cardHtml) }},\n  \"options\": {\n    \"type\": \"png\",\n    \"fullPage\": false,\n    \"clip\": { \"x\": 0, \"y\": 0, \"width\": 1200, \"height\": 630 }\n  },\n  \"viewport\": {\n    \"width\": 1200,\n    \"height\": 630,\n    \"deviceScaleFactor\": 2\n  }\n}",
+        "jsonBody": "={\n  \"html\": {{ JSON.stringify($json.cardSquareHtml) }},\n  \"options\": { \"type\": \"png\", \"fullPage\": false, \"clip\": { \"x\": 0, \"y\": 0, \"width\": 1080, \"height\": 1080 } },\n  \"viewport\": { \"width\": 1080, \"height\": 1080, \"deviceScaleFactor\": 2 }\n}",
         "options": {
           "response": {
             "response": {
-              "responseFormat": "file"
+              "responseFormat": "file",
+              "outputPropertyName": "cardSquare"
             }
           }
         }
       },
-      "id": "browserless-screenshot",
-      "name": "Gerar Imagem Branded (Browserless)",
+      "id": "screenshot-square",
+      "name": "Render Card 1080x1080 (Instagram)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [880, 400],
-      "notes": "Renderiza o HTML do card via Browserless (container Docker local). Resultado: imagem PNG binaria."
+      "position": [880, 300],
+      "notes": "Card quadrado para Instagram e Telegram."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://browserless:3000/screenshot",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"html\": {{ JSON.stringify($json.cardWideHtml) }},\n  \"options\": { \"type\": \"png\", \"fullPage\": false, \"clip\": { \"x\": 0, \"y\": 0, \"width\": 1200, \"height\": 630 } },\n  \"viewport\": { \"width\": 1200, \"height\": 630, \"deviceScaleFactor\": 2 }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "cardWide"
+            }
+          }
+        }
+      },
+      "id": "screenshot-wide",
+      "name": "Render Card 1200x630 (FB/WA)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 500],
+      "notes": "Card wide para Facebook e WhatsApp."
     },
     {
       "parameters": {
@@ -74,7 +108,7 @@
           "parameters": [
             {
               "name": "Content-Disposition",
-              "value": "=attachment; filename=\"card-social-{{ $('Extrair Dados do Post').first().json.post_id }}.png\""
+              "value": "=attachment; filename=\"card-square-{{ $('Extrair Dados do Post').first().json.post_id }}.png\""
             },
             {
               "name": "Content-Type",
@@ -84,28 +118,64 @@
         },
         "sendBody": true,
         "contentType": "binaryData",
+        "inputDataFieldName": "cardSquare",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
         "options": {}
       },
-      "id": "wp-upload-card",
-      "name": "Upload Card no WordPress",
+      "id": "wp-upload-square",
+      "name": "Upload Card Quadrado (WP)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1100, 400],
+      "position": [1100, 300],
       "credentials": {
         "httpBasicAuth": {
           "id": "wp-cred",
           "name": "WordPress Basic Auth"
         }
-      },
-      "notes": "Faz upload da imagem branded no WP para obter URL publica (necessaria para Instagram e WhatsApp)."
+      }
     },
     {
       "parameters": {
-        "jsCode": "const cardUpload = $input.first().json;\nconst postData = $('Extrair Dados do Post').first().json;\n\nconst cardUrl = cardUpload.source_url || cardUpload.guid?.rendered || '';\n\n// Textos para cada canal com formatacao otimizada\nconst fbText = `${postData.titulo}\\n\\n${postData.excerpt}...\\n\\n${postData.hashtags}`;\nconst instaCaption = `${postData.titulo}\\n\\n${postData.excerpt}...\\n\\n📰 Link na bio!\\n\\n${postData.hashtags}`;\nconst telegramText = `📰 *${postData.titulo}*\\n\\n${postData.excerpt}...\\n\\n🔗 [Leia a materia completa](${postData.link})\\n\\n${postData.hashtags}`;\nconst whatsappText = `📰 *${postData.titulo}*\\n_${postData.editoria} | ${postData.autor}_\\n\\n${postData.excerpt}...\\n\\n👉 ${postData.link}`;\n\nreturn [{\n  json: {\n    ...postData,\n    cardUrl,\n    fbText,\n    instaCaption,\n    telegramText,\n    whatsappText\n  }\n}];"
+        "method": "POST",
+        "url": "={{ $env.WORDPRESS_URL }}/wp-json/wp/v2/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Disposition",
+              "value": "=attachment; filename=\"card-wide-{{ $('Extrair Dados do Post').first().json.post_id }}.png\""
+            },
+            {
+              "name": "Content-Type",
+              "value": "image/png"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "cardWide",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
       },
-      "id": "preparar-textos-canais",
+      "id": "wp-upload-wide",
+      "name": "Upload Card Wide (WP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 500],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "wp-cred",
+          "name": "WordPress Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const squareUpload = $('Upload Card Quadrado (WP)').first().json;\nconst wideUpload = $('Upload Card Wide (WP)').first().json;\nconst postData = $('Extrair Dados do Post').first().json;\n\nconst squareUrl = squareUpload.source_url || squareUpload.guid?.rendered || '';\nconst wideUrl = wideUpload.source_url || wideUpload.guid?.rendered || '';\n\n// Textos otimizados por canal\nconst fbText = `${postData.titulo}\\n\\n${postData.excerpt}...\\n\\n${postData.hashtags}`;\n\nconst instaCaption = `${postData.titulo}\\n\\n${postData.excerpt}...\\n\\n📰 Link na bio!\\n\\n${postData.hashtags}`;\n\nconst telegramText = `📰 *${postData.titulo}*\\n_${postData.editoria}_ | Por *${postData.autor}*\\n\\n${postData.excerpt}...\\n\\n🔗 [Leia completo](${postData.link})\\n\\n${postData.hashtags}`;\n\nconst whatsappText = `📰 *${postData.titulo}*\\n_${postData.editoria} | ${postData.autor}_\\n\\n${postData.excerpt}...\\n\\n👉 ${postData.link}`;\n\nreturn [{\n  json: {\n    ...postData,\n    squareUrl,\n    wideUrl,\n    fbText,\n    instaCaption,\n    telegramText,\n    whatsappText\n  }\n}];"
+      },
+      "id": "preparar-textos",
       "name": "Preparar Textos por Canal",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -117,15 +187,15 @@
         "url": "=https://graph.facebook.com/v18.0/{{ $env.FACEBOOK_PAGE_ID }}/photos",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"url\": \"{{ $json.cardUrl }}\",\n  \"message\": {{ JSON.stringify($json.fbText + '\\n\\n' + $json.link) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
+        "jsonBody": "={\n  \"url\": \"{{ $json.wideUrl }}\",\n  \"message\": {{ JSON.stringify($json.fbText + '\\n\\n' + $json.link) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
         "options": {}
       },
       "id": "facebook-post",
-      "name": "Facebook (Card + Link)",
+      "name": "Facebook (Card Wide + Link)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1580, 180],
-      "notes": "Publica a imagem do card + texto + link. Imagem com logo garante identidade visual."
+      "notes": "Publica card 1200x630 + texto + link no Facebook."
     },
     {
       "parameters": {
@@ -133,14 +203,15 @@
         "url": "=https://graph.facebook.com/v18.0/{{ $env.INSTAGRAM_BUSINESS_ACCOUNT_ID }}/media",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"image_url\": \"{{ $json.cardUrl }}\",\n  \"caption\": {{ JSON.stringify($json.instaCaption) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
+        "jsonBody": "={\n  \"image_url\": \"{{ $json.squareUrl }}\",\n  \"caption\": {{ JSON.stringify($json.instaCaption) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
         "options": {}
       },
       "id": "instagram-create",
-      "name": "Instagram - Criar Media",
+      "name": "Instagram - Card 1080x1080",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1580, 340]
+      "position": [1580, 340],
+      "notes": "Usa o card quadrado (formato nativo do Instagram)."
     },
     {
       "parameters": {
@@ -159,14 +230,16 @@
     },
     {
       "parameters": {
+        "operation": "sendPhoto",
         "chatId": "={{ $env.TELEGRAM_CHANNEL_ID }}",
-        "text": "={{ $('Preparar Textos por Canal').first().json.telegramText }}",
+        "file": "={{ $('Preparar Textos por Canal').first().json.squareUrl }}",
         "additionalFields": {
+          "caption": "={{ $('Preparar Textos por Canal').first().json.telegramText }}",
           "parse_mode": "Markdown"
         }
       },
-      "id": "telegram-text",
-      "name": "Telegram - Texto",
+      "id": "telegram-post",
+      "name": "Telegram - Card + Texto",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [1580, 500],
@@ -175,29 +248,8 @@
           "id": "telegram-cred",
           "name": "Telegram Bot"
         }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "sendPhoto",
-        "chatId": "={{ $env.TELEGRAM_CHANNEL_ID }}",
-        "file": "={{ $('Preparar Textos por Canal').first().json.cardUrl }}",
-        "additionalFields": {
-          "caption": "={{ $('Preparar Textos por Canal').first().json.titulo }}",
-          "parse_mode": "Markdown"
-        }
       },
-      "id": "telegram-photo",
-      "name": "Telegram - Card Imagem",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [1800, 500],
-      "credentials": {
-        "telegramApi": {
-          "id": "telegram-cred",
-          "name": "Telegram Bot"
-        }
-      }
+      "notes": "Envia card quadrado como foto com caption formatado no canal do Telegram."
     },
     {
       "parameters": {
@@ -218,25 +270,25 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $env.WHATSAPP_GROUP_ID }}\",\n  \"mediatype\": \"image\",\n  \"media\": \"{{ $('Preparar Textos por Canal').first().json.cardUrl }}\",\n  \"caption\": {{ JSON.stringify($('Preparar Textos por Canal').first().json.whatsappText) }}\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $env.WHATSAPP_GROUP_ID }}\",\n  \"mediatype\": \"image\",\n  \"media\": \"{{ $('Preparar Textos por Canal').first().json.wideUrl }}\",\n  \"caption\": {{ JSON.stringify($('Preparar Textos por Canal').first().json.whatsappText) }}\n}",
         "options": {}
       },
       "id": "whatsapp-card",
-      "name": "WhatsApp - Card + Texto",
+      "name": "WhatsApp - Card Wide + Texto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1580, 660],
-      "notes": "Envia a imagem branded + texto formatado via Evolution API."
+      "notes": "Envia card 1200x630 + texto formatado via Evolution API."
     },
     {
       "parameters": {
-        "jsCode": "const d = $('Preparar Textos por Canal').first().json;\n\nconst successCount = 4; // FB + IG + TG + WA\n\nreturn [{\n  json: {\n    mensagem: `📊 *Distribuicao Completa!*\\n\\n📰 *${d.titulo}*\\n🏷 ${d.editoria} | ✍️ ${d.autor}\\n\\n✅ Facebook (card + link)\\n✅ Instagram (card branded)\\n✅ Telegram (texto + card)\\n✅ WhatsApp (card + texto)\\n\\n🖼 Imagem: ${d.cardUrl}\\n🔗 Post: ${d.link}`\n  }\n}];"
+        "jsCode": "const d = $('Preparar Textos por Canal').first().json;\n\nreturn [{\n  json: {\n    mensagem: `📊 *Distribuicao Completa!*\\n\\n📰 *${d.titulo}*\\n🏷 _${d.editoria}_ | ✍️ ${d.autor}\\n\\n✅ Facebook (card wide 1200x630)\\n✅ Instagram (card quadrado 1080x1080)\\n✅ Telegram Canal (card + texto)\\n✅ WhatsApp (card + texto)\\n\\n🖼 Cards gerados:\\n• Quadrado: ${d.squareUrl}\\n• Wide: ${d.wideUrl}\\n\\n🔗 ${d.link}`\n  }\n}];"
       },
       "id": "prepare-report",
       "name": "Preparar Relatorio",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2020, 400]
+      "position": [1840, 660]
     },
     {
       "parameters": {
@@ -250,7 +302,7 @@
       "name": "Relatorio para Editor",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2240, 400],
+      "position": [2060, 660],
       "credentials": {
         "telegramApi": {
           "id": "telegram-cred",
@@ -261,162 +313,54 @@
   ],
   "connections": {
     "Webhook - Post Publicado": {
-      "main": [
-        [
-          {
-            "node": "Extrair Dados do Post",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Extrair Dados do Post", "type": "main", "index": 0 } ]]
     },
     "Extrair Dados do Post": {
-      "main": [
-        [
-          {
-            "node": "Gerar Card HTML",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Gerar Cards (2 formatos)", "type": "main", "index": 0 } ]]
     },
-    "Gerar Card HTML": {
-      "main": [
-        [
-          {
-            "node": "Gerar Imagem Branded (Browserless)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Gerar Cards (2 formatos)": {
+      "main": [[
+        { "node": "Render Card 1080x1080 (Instagram)", "type": "main", "index": 0 },
+        { "node": "Render Card 1200x630 (FB/WA)", "type": "main", "index": 0 }
+      ]]
     },
-    "Gerar Imagem Branded (Browserless)": {
-      "main": [
-        [
-          {
-            "node": "Upload Card no WordPress",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Render Card 1080x1080 (Instagram)": {
+      "main": [[ { "node": "Upload Card Quadrado (WP)", "type": "main", "index": 0 } ]]
     },
-    "Upload Card no WordPress": {
-      "main": [
-        [
-          {
-            "node": "Preparar Textos por Canal",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Render Card 1200x630 (FB/WA)": {
+      "main": [[ { "node": "Upload Card Wide (WP)", "type": "main", "index": 0 } ]]
+    },
+    "Upload Card Quadrado (WP)": {
+      "main": [[ { "node": "Preparar Textos por Canal", "type": "main", "index": 0 } ]]
+    },
+    "Upload Card Wide (WP)": {
+      "main": [[ { "node": "Preparar Textos por Canal", "type": "main", "index": 0 } ]]
     },
     "Preparar Textos por Canal": {
-      "main": [
-        [
-          {
-            "node": "Facebook (Card + Link)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Instagram - Criar Media",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Telegram - Texto",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "WhatsApp - Card + Texto",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[
+        { "node": "Facebook (Card Wide + Link)", "type": "main", "index": 0 },
+        { "node": "Instagram - Card 1080x1080", "type": "main", "index": 0 },
+        { "node": "Telegram - Card + Texto", "type": "main", "index": 0 },
+        { "node": "WhatsApp - Card Wide + Texto", "type": "main", "index": 0 }
+      ]]
     },
-    "Instagram - Criar Media": {
-      "main": [
-        [
-          {
-            "node": "Instagram - Publicar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Instagram - Card 1080x1080": {
+      "main": [[ { "node": "Instagram - Publicar", "type": "main", "index": 0 } ]]
     },
-    "Telegram - Texto": {
-      "main": [
-        [
-          {
-            "node": "Telegram - Card Imagem",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Facebook (Card Wide + Link)": {
+      "main": [[ { "node": "Preparar Relatorio", "type": "main", "index": 0 } ]]
     },
-    "Facebook (Card + Link)": {
-      "main": [
-        [
-          {
-            "node": "Preparar Relatorio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Telegram - Card + Texto": {
+      "main": [[ { "node": "Preparar Relatorio", "type": "main", "index": 0 } ]]
     },
-    "WhatsApp - Card + Texto": {
-      "main": [
-        [
-          {
-            "node": "Preparar Relatorio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Telegram - Card Imagem": {
-      "main": [
-        [
-          {
-            "node": "Preparar Relatorio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "WhatsApp - Card Wide + Texto": {
+      "main": [[ { "node": "Preparar Relatorio", "type": "main", "index": 0 } ]]
     },
     "Instagram - Publicar": {
-      "main": [
-        [
-          {
-            "node": "Preparar Relatorio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Preparar Relatorio", "type": "main", "index": 0 } ]]
     },
     "Preparar Relatorio": {
-      "main": [
-        [
-          {
-            "node": "Relatorio para Editor",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Relatorio para Editor", "type": "main", "index": 0 } ]]
     }
   },
   "settings": {
@@ -426,11 +370,7 @@
     "timezone": "America/Sao_Paulo"
   },
   "tags": [
-    {
-      "name": "distribuicao"
-    },
-    {
-      "name": "jornal-espaco-do-povo"
-    }
+    { "name": "distribuicao" },
+    { "name": "jornal-espaco-do-povo" }
   ]
 }
