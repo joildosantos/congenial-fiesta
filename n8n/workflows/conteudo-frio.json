@@ -104,7 +104,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"meta-llama/llama-3.1-8b-instruct:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Voce e um jornalista comunitario do Jornal Espaco do Povo, um veiculo de comunicacao das periferias de Sao Paulo. Sua missao e reescrever conteudos com linguagem acessivel, envolvente e que valorize a identidade periferica. Use tom informativo mas proximo do leitor. Evite termos tecnicos ou elitistas. Sempre pense no morador da periferia como seu leitor principal.\\n\\nResponda SEMPRE em formato JSON valido com as chaves: titulo, conteudo_html, meta_description.\\n\\n- titulo: maximo 70 caracteres, otimizado para SEO e engajamento\\n- conteudo_html: entre 300 e 600 palavras, em HTML simples (p, h2, h3, ul, li, strong, em). Inclua subtitulos.\\n- meta_description: maximo 160 caracteres, resumo atrativo para Google\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Reescreva o seguinte conteudo para publicacao no site:\\n\\nTitulo rascunho: {{ $json.titulo_rascunho }}\\nTema: {{ $json.tema }}\\nBairro/Regiao: {{ $json.bairro }}\\nTipo: {{ $json.tipo }}\\nNotas/Informacoes: {{ $json.notas }}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500\n}"
+        "jsonBody": "={\n  \"model\": \"meta-llama/llama-3.1-8b-instruct:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Voce e um jornalista comunitario do Jornal Espaco do Povo, um veiculo de comunicacao das periferias de Sao Paulo. Sua missao e reescrever conteudos com linguagem acessivel, envolvente e que valorize a identidade periferica. Use tom informativo mas proximo do leitor. Evite termos tecnicos ou elitistas. Sempre pense no morador da periferia como seu leitor principal.\\n\\nResponda SEMPRE em formato JSON valido com as chaves: titulo_a, titulo_b, conteudo_html, meta_description, resumo_audio.\\n\\n- titulo_a: maximo 70 caracteres, otimizado para SEO e engajamento (estilo informativo)\\n- titulo_b: maximo 70 caracteres, alternativa mais criativa/emocional (estilo storytelling)\\n- conteudo_html: entre 300 e 600 palavras, em HTML simples (p, h2, h3, ul, li, strong, em). Inclua subtitulos.\\n- meta_description: maximo 160 caracteres, resumo atrativo para Google\\n- resumo_audio: resumo de 2-3 frases em linguagem oral natural, como se fosse lido em voz alta no WhatsApp (max 280 chars)\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Reescreva o seguinte conteudo para publicacao no site:\\n\\nTitulo rascunho: {{ $json.titulo_rascunho }}\\nTema: {{ $json.tema }}\\nBairro/Regiao: {{ $json.bairro }}\\nTipo: {{ $json.tipo }}\\nNotas/Informacoes: {{ $json.notas }}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500\n}"
       },
       "id": "openrouter-rewrite",
       "name": "LLM Reescrita (OpenRouter)",
@@ -115,7 +115,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nconst content = response.choices[0].message.content;\n\n// Tenta parsear o JSON da resposta do LLM\nlet parsed;\ntry {\n  // Remove possivel markdown code block\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Fallback: extrai campos com regex\n  const tituloMatch = content.match(/\"titulo\"\\s*:\\s*\"([^\"]+)\"/);\n  const metaMatch = content.match(/\"meta_description\"\\s*:\\s*\"([^\"]+)\"/);\n  const htmlMatch = content.match(/\"conteudo_html\"\\s*:\\s*\"([\\s\\S]+?)\"\\s*[,}]/);\n  \n  parsed = {\n    titulo: tituloMatch ? tituloMatch[1] : 'Titulo nao gerado',\n    conteudo_html: htmlMatch ? htmlMatch[1] : '<p>Conteudo nao gerado</p>',\n    meta_description: metaMatch ? metaMatch[1] : ''\n  };\n}\n\n// Pega dados da pauta original (do Google Sheets)\nconst pauta = $('Buscar Proxima Pauta').first().json;\n\nreturn [{\n  json: {\n    titulo: parsed.titulo,\n    conteudo_html: parsed.conteudo_html,\n    meta_description: parsed.meta_description,\n    imagem_url: pauta.imagem_url || '',\n    categorias: pauta.categorias || '',\n    tags: pauta.tags || '',\n    bairro: pauta.bairro || '',\n    tipo: pauta.tipo || '',\n    row_number: pauta.row_number || pauta.rowIndex || '',\n    titulo_rascunho: pauta.titulo_rascunho || ''\n  }\n}];"
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices[0].message.content;\n\n// Tenta parsear o JSON da resposta do LLM\nlet parsed;\ntry {\n  // Remove possivel markdown code block\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Fallback: extrai campos com regex\n  const tituloMatch = content.match(/\"titulo\"\\s*:\\s*\"([^\"]+)\"/);\n  const metaMatch = content.match(/\"meta_description\"\\s*:\\s*\"([^\"]+)\"/);\n  const htmlMatch = content.match(/\"conteudo_html\"\\s*:\\s*\"([\\s\\S]+?)\"\\s*[,}]/);\n  \n  parsed = {\n    titulo_a: tituloMatch ? tituloMatch[1] : 'Titulo nao gerado',\n    titulo_b: '',\n    conteudo_html: htmlMatch ? htmlMatch[1] : '<p>Conteudo nao gerado</p>',\n    meta_description: metaMatch ? metaMatch[1] : '',\n    resumo_audio: ''\n  };\n}\n\n// Pega dados da pauta original (do Google Sheets)\nconst pauta = $('Buscar Proxima Pauta').first().json;\n\nreturn [{\n  json: {\n    titulo_a: parsed.titulo_a || parsed.titulo || '',\n    titulo_b: parsed.titulo_b || '',\n    conteudo_html: parsed.conteudo_html,\n    meta_description: parsed.meta_description,\n    resumo_audio: parsed.resumo_audio || '',\n    imagem_url: pauta.imagem_url || '',\n    categorias: pauta.categorias || '',\n    tags: pauta.tags || '',\n    bairro: pauta.bairro || '',\n    tipo: pauta.tipo || '',\n    row_number: pauta.row_number || pauta.rowIndex || '',\n    titulo_rascunho: pauta.titulo_rascunho || ''\n  }\n}];"
       },
       "id": "parse-llm-response",
       "name": "Processar Resposta LLM",
@@ -126,18 +126,22 @@
     {
       "parameters": {
         "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
-        "text": "=📰 *APROVACAO - Conteudo Frio*\n\n*Titulo:* {{ $json.titulo }}\n\n*Tipo:* {{ $json.tipo }} | *Bairro:* {{ $json.bairro }}\n\n*Resumo:* {{ $json.meta_description }}\n\n*Categorias:* {{ $json.categorias }}\n*Tags:* {{ $json.tags }}\n\n---\n_Titulo original:_ {{ $json.titulo_rascunho }}",
+        "text": "=📰 *APROVACAO - Conteudo Frio*\n\n🅰️ *Titulo A:* {{ $json.titulo_a }}\n🅱️ *Titulo B:* {{ $json.titulo_b }}\n\n*Tipo:* {{ $json.tipo }} | *Bairro:* {{ $json.bairro }}\n\n*Resumo:* {{ $json.meta_description }}\n🔊 *Audio:* {{ $json.resumo_audio }}\n\n*Categorias:* {{ $json.categorias }}\n*Tags:* {{ $json.tags }}\n\n---\n_Titulo original:_ {{ $json.titulo_rascunho }}",
         "additionalFields": {
           "parse_mode": "Markdown",
           "reply_markup": {
             "inline_keyboard": [
               [
                 {
-                  "text": "✅ Aprovar",
-                  "callback_data": "aprovar_frio"
+                  "text": "🅰️ Titulo A",
+                  "callback_data": "aprovar_frio_a"
                 },
                 {
-                  "text": "✏️ Editar Titulo",
+                  "text": "🅱️ Titulo B",
+                  "callback_data": "aprovar_frio_b"
+                },
+                {
+                  "text": "✏️ Editar",
                   "callback_data": "editar_frio"
                 },
                 {

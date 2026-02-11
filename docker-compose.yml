@@ -73,6 +73,19 @@ services:
     networks:
       - jornal-network
 
+  browserless:
+    image: browserless/chrome:latest
+    container_name: browserless
+    restart: always
+    environment:
+      - MAX_CONCURRENT_SESSIONS=5
+      - CONNECTION_TIMEOUT=60000
+      - TOKEN=${BROWSERLESS_TOKEN:-}
+    ports:
+      - "${BROWSERLESS_PORT:-3000}:3000"
+    networks:
+      - jornal-network
+
 volumes:
   n8n_data:
   postgres_data:

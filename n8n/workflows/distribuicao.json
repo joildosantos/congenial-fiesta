@@ -1,5 +1,5 @@
 {
-  "name": "Distribuicao Multi-Canal",
+  "name": "Distribuicao Multi-Canal (com Imagem Branded)",
   "nodes": [
     {
       "parameters": {
@@ -11,34 +11,121 @@
       "name": "Webhook - Post Publicado",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [220, 340],
-      "notes": "Acionado pelo WordPress quando um post e publicado. Configurar webhook no WP (plugin WP Webhooks ou funcao customizada no functions.php)."
+      "position": [220, 400],
+      "notes": "Acionado pelo WordPress quando um post e publicado."
     },
     {
       "parameters": {
-        "jsCode": "const post = $input.first().json;\n\n// Extrai dados do post WordPress\nconst titulo = post.post_title || post.title?.rendered || '';\nconst link = post.guid || post.link || '';\nconst excerpt = (post.post_excerpt || post.excerpt?.rendered || '').replace(/<[^>]*>/g, '').substring(0, 200);\nconst featuredImage = post.featured_image_url || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';\nconst categories = (post.categories_names || []).join(', ');\n\n// Texto para redes sociais\nconst socialText = `${titulo}\\n\\n${excerpt}...\\n\\n📰 Leia mais: ${link}\\n\\n#JornalEspacoDoPovo #Periferia #Noticias`;\n\n// Texto curto para WhatsApp\nconst whatsappText = `📰 *${titulo}*\\n\\n${excerpt}...\\n\\n👉 ${link}`;\n\n// Caption Instagram (sem link clicavel)\nconst instaCaption = `${titulo}\\n\\n${excerpt}...\\n\\n📰 Link na bio!\\n\\n#JornalEspacoDoPovo #Periferia #Noticias #SP #Comunidade #Quebrada`;\n\nreturn [{\n  json: {\n    titulo,\n    link,\n    excerpt,\n    featuredImage,\n    categories,\n    socialText,\n    whatsappText,\n    instaCaption,\n    post_id: post.ID || post.id\n  }\n}];"
+        "jsCode": "const post = $input.first().json;\n\nconst titulo = post.post_title || post.title?.rendered || '';\nconst link = post.guid || post.link || '';\nconst excerpt = (post.post_excerpt || post.excerpt?.rendered || '').replace(/<[^>]*>/g, '').substring(0, 200);\nconst featuredImage = post.featured_image_url || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';\nconst categories = (post.categories_names || []);\nconst editoria = categories[0] || 'Noticias';\nconst autor = post.author_name || 'Redacao';\nconst tags = (post.tags_names || []);\n\n// Hashtags a partir de categorias + tags\nconst hashtags = ['JornalEspacoDoPovo', 'Periferia', ...categories, ...tags]\n  .map(t => '#' + t.replace(/[^a-zA-Z0-9\\u00C0-\\u024F]/g, ''))\n  .filter((v, i, a) => a.indexOf(v) === i)\n  .slice(0, 12)\n  .join(' ');\n\nreturn [{\n  json: {\n    titulo,\n    link,\n    excerpt,\n    featuredImage,\n    editoria,\n    autor,\n    categories: categories.join(', '),\n    hashtags,\n    post_id: post.ID || post.id\n  }\n}];"
       },
-      "id": "prepare-social",
-      "name": "Preparar Conteudo Social",
+      "id": "prepare-data",
+      "name": "Extrair Dados do Post",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 340]
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\n\nconst titulo = d.titulo || 'Titulo da Materia';\nconst editoria = (d.editoria || 'Noticias').toUpperCase();\nconst autor = d.autor || 'Redacao';\nconst imagemFundo = d.featuredImage || '';\nconst dataPublicacao = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });\n\nconst coresEditoria = {\n  'SAUDE': '#2ecc71', 'EDUCACAO': '#3498db', 'TRANSPORTE': '#e67e22',\n  'CULTURA': '#9b59b6', 'ESPORTE': '#e74c3c', 'HISTORIA': '#f39c12',\n  'SERVICOS': '#1abc9c', 'GASTRONOMIA': '#e74c3c', 'EVENTOS': '#8e44ad',\n  'MEIO-AMBIENTE': '#27ae60', 'EMPREENDEDORISMO': '#2c3e50',\n  'NOTICIAS': '#c0392b', 'CURIOSIDADE': '#f1c40f'\n};\nconst cor = coresEditoria[editoria] || '#c0392b';\n\nconst maxCharsPerLine = 28;\nconst words = titulo.split(' ');\nlet lines = []; let currentLine = '';\nfor (const word of words) {\n  if ((currentLine + ' ' + word).trim().length > maxCharsPerLine) {\n    if (currentLine) lines.push(currentLine.trim());\n    currentLine = word;\n  } else { currentLine = (currentLine + ' ' + word).trim(); }\n}\nif (currentLine) lines.push(currentLine.trim());\nif (lines.length > 4) { lines = lines.slice(0, 4); lines[3] = lines[3].substring(0, 25) + '...'; }\nconst fontSize = lines.length <= 2 ? 48 : lines.length <= 3 ? 40 : 34;\n\nconst html = `<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>\n* { margin:0; padding:0; box-sizing:border-box; }\nbody { width:1200px; height:630px; overflow:hidden; font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; }\n.card { width:1200px; height:630px; position:relative; background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); display:flex; flex-direction:column; justify-content:space-between; }\n${imagemFundo ? `.card::before { content:''; position:absolute; top:0;left:0;right:0;bottom:0; background:url('${imagemFundo}') center/cover; opacity:0.25; z-index:0; }` : ''}\n.card>*{position:relative;z-index:1;}\n.top{display:flex;justify-content:space-between;align-items:center;padding:28px 40px;}\n.logo{display:flex;align-items:center;gap:16px;}\n.logo-icon{width:56px;height:56px;background:#c0392b;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:white;letter-spacing:-2px;}\n.logo-text{color:white;font-size:22px;font-weight:700;line-height:1.1;}\n.logo-text span{display:block;font-size:13px;font-weight:400;opacity:0.7;letter-spacing:2px;text-transform:uppercase;}\n.badge{background:${cor};color:white;padding:8px 24px;border-radius:6px;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;}\n.content{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 60px;}\n.titulo{color:white;font-size:${fontSize}px;font-weight:800;line-height:1.25;text-shadow:0 2px 20px rgba(0,0,0,0.5);max-width:900px;}\n.accent{width:80px;height:5px;background:${cor};border-radius:3px;margin-top:24px;}\n.bottom{display:flex;justify-content:space-between;align-items:center;padding:24px 40px;background:rgba(0,0,0,0.3);border-top:1px solid rgba(255,255,255,0.1);}\n.autor{color:rgba(255,255,255,0.8);font-size:16px;} .autor strong{color:white;}\n.data{color:rgba(255,255,255,0.6);font-size:14px;letter-spacing:1px;}\n.site{color:${cor};font-size:15px;font-weight:600;}\n</style></head><body>\n<div class=\"card\">\n  <div class=\"top\"><div class=\"logo\"><div class=\"logo-icon\">EP</div><div class=\"logo-text\">Espaco do Povo<span>Jornal Comunitario</span></div></div><div class=\"badge\">${editoria}</div></div>\n  <div class=\"content\"><div class=\"titulo\">${lines.join('<br>')}</div><div class=\"accent\"></div></div>\n  <div class=\"bottom\"><div class=\"autor\">Por <strong>${autor}</strong></div><div class=\"data\">${dataPublicacao}</div><div class=\"site\">jornalespacodopovo.com.br</div></div>\n</div></body></html>`;\n\nreturn [{ json: { ...d, cardHtml: html } }];"
+      },
+      "id": "gerar-card-html",
+      "name": "Gerar Card HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 400]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v18.0/{{ $env.FACEBOOK_PAGE_ID }}/feed",
+        "url": "=http://browserless:3000/screenshot",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"message\": {{ JSON.stringify($json.socialText) }},\n  \"link\": \"{{ $json.link }}\",\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
+        "jsonBody": "={\n  \"html\": {{ JSON.stringify($json.cardHtml) }},\n  \"options\": {\n    \"type\": \"png\",\n    \"fullPage\": false,\n    \"clip\": { \"x\": 0, \"y\": 0, \"width\": 1200, \"height\": 630 }\n  },\n  \"viewport\": {\n    \"width\": 1200,\n    \"height\": 630,\n    \"deviceScaleFactor\": 2\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "browserless-screenshot",
+      "name": "Gerar Imagem Branded (Browserless)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "notes": "Renderiza o HTML do card via Browserless (container Docker local). Resultado: imagem PNG binaria."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WORDPRESS_URL }}/wp-json/wp/v2/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Disposition",
+              "value": "=attachment; filename=\"card-social-{{ $('Extrair Dados do Post').first().json.post_id }}.png\""
+            },
+            {
+              "name": "Content-Type",
+              "value": "image/png"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "wp-upload-card",
+      "name": "Upload Card no WordPress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 400],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "wp-cred",
+          "name": "WordPress Basic Auth"
+        }
+      },
+      "notes": "Faz upload da imagem branded no WP para obter URL publica (necessaria para Instagram e WhatsApp)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const cardUpload = $input.first().json;\nconst postData = $('Extrair Dados do Post').first().json;\n\nconst cardUrl = cardUpload.source_url || cardUpload.guid?.rendered || '';\n\n// Textos para cada canal com formatacao otimizada\nconst fbText = `${postData.titulo}\\n\\n${postData.excerpt}...\\n\\n${postData.hashtags}`;\nconst instaCaption = `${postData.titulo}\\n\\n${postData.excerpt}...\\n\\n📰 Link na bio!\\n\\n${postData.hashtags}`;\nconst telegramText = `📰 *${postData.titulo}*\\n\\n${postData.excerpt}...\\n\\n🔗 [Leia a materia completa](${postData.link})\\n\\n${postData.hashtags}`;\nconst whatsappText = `📰 *${postData.titulo}*\\n_${postData.editoria} | ${postData.autor}_\\n\\n${postData.excerpt}...\\n\\n👉 ${postData.link}`;\n\nreturn [{\n  json: {\n    ...postData,\n    cardUrl,\n    fbText,\n    instaCaption,\n    telegramText,\n    whatsappText\n  }\n}];"
+      },
+      "id": "preparar-textos-canais",
+      "name": "Preparar Textos por Canal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $env.FACEBOOK_PAGE_ID }}/photos",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.cardUrl }}\",\n  \"message\": {{ JSON.stringify($json.fbText + '\\n\\n' + $json.link) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
         "options": {}
       },
       "id": "facebook-post",
-      "name": "Publicar no Facebook",
+      "name": "Facebook (Card + Link)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, 140],
-      "notes": "Publica link + texto na Facebook Page. Requer Page Access Token com permissao pages_manage_posts."
+      "position": [1580, 180],
+      "notes": "Publica a imagem do card + texto + link. Imagem com logo garante identidade visual."
     },
     {
       "parameters": {
@@ -46,15 +133,14 @@
         "url": "=https://graph.facebook.com/v18.0/{{ $env.INSTAGRAM_BUSINESS_ACCOUNT_ID }}/media",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"image_url\": \"{{ $json.featuredImage }}\",\n  \"caption\": {{ JSON.stringify($json.instaCaption) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
+        "jsonBody": "={\n  \"image_url\": \"{{ $json.cardUrl }}\",\n  \"caption\": {{ JSON.stringify($json.instaCaption) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
         "options": {}
       },
-      "id": "instagram-create-media",
-      "name": "Instagram - Criar Midia",
+      "id": "instagram-create",
+      "name": "Instagram - Criar Media",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, 300],
-      "notes": "Etapa 1 do Instagram: cria o container de midia. Etapa 2 (Publicar) usa o creation_id retornado."
+      "position": [1580, 340]
     },
     {
       "parameters": {
@@ -69,58 +155,49 @@
       "name": "Instagram - Publicar",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 300],
-      "notes": "Etapa 2: publica a midia criada na etapa anterior."
+      "position": [1800, 340]
     },
     {
       "parameters": {
         "chatId": "={{ $env.TELEGRAM_CHANNEL_ID }}",
-        "text": "={{ $json.socialText }}",
+        "text": "={{ $('Preparar Textos por Canal').first().json.telegramText }}",
         "additionalFields": {
           "parse_mode": "Markdown"
         }
       },
-      "id": "telegram-channel",
-      "name": "Publicar no Telegram Canal",
+      "id": "telegram-text",
+      "name": "Telegram - Texto",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [720, 460],
+      "position": [1580, 500],
       "credentials": {
         "telegramApi": {
           "id": "telegram-cred",
           "name": "Telegram Bot"
         }
-      },
-      "notes": "Envia para o canal do Telegram. O bot precisa ser admin do canal."
+      }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.EVOLUTION_SERVER_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE_NAME }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $env.WHATSAPP_GROUP_ID }}\",\n  \"text\": {{ JSON.stringify($json.whatsappText) }}\n}",
-        "options": {}
+        "operation": "sendPhoto",
+        "chatId": "={{ $env.TELEGRAM_CHANNEL_ID }}",
+        "file": "={{ $('Preparar Textos por Canal').first().json.cardUrl }}",
+        "additionalFields": {
+          "caption": "={{ $('Preparar Textos por Canal').first().json.titulo }}",
+          "parse_mode": "Markdown"
+        }
       },
-      "id": "whatsapp-send",
-      "name": "Enviar WhatsApp (Evolution API)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [720, 620],
-      "notes": "Envia mensagem via Evolution API para grupo ou lista de transmissao do WhatsApp."
+      "id": "telegram-photo",
+      "name": "Telegram - Card Imagem",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1800, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
     },
     {
       "parameters": {
@@ -141,29 +218,39 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $env.WHATSAPP_GROUP_ID }}\",\n  \"mediatype\": \"image\",\n  \"media\": \"{{ $json.featuredImage }}\",\n  \"caption\": {{ JSON.stringify($json.whatsappText) }}\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $env.WHATSAPP_GROUP_ID }}\",\n  \"mediatype\": \"image\",\n  \"media\": \"{{ $('Preparar Textos por Canal').first().json.cardUrl }}\",\n  \"caption\": {{ JSON.stringify($('Preparar Textos por Canal').first().json.whatsappText) }}\n}",
         "options": {}
       },
-      "id": "whatsapp-send-image",
-      "name": "WhatsApp - Enviar com Imagem",
+      "id": "whatsapp-card",
+      "name": "WhatsApp - Card + Texto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 620],
-      "notes": "Alternativa: envia imagem destacada junto com o texto. Usar este OU o node anterior."
+      "position": [1580, 660],
+      "notes": "Envia a imagem branded + texto formatado via Evolution API."
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Preparar Textos por Canal').first().json;\n\nconst successCount = 4; // FB + IG + TG + WA\n\nreturn [{\n  json: {\n    mensagem: `📊 *Distribuicao Completa!*\\n\\n📰 *${d.titulo}*\\n🏷 ${d.editoria} | ✍️ ${d.autor}\\n\\n✅ Facebook (card + link)\\n✅ Instagram (card branded)\\n✅ Telegram (texto + card)\\n✅ WhatsApp (card + texto)\\n\\n🖼 Imagem: ${d.cardUrl}\\n🔗 Post: ${d.link}`\n  }\n}];"
+      },
+      "id": "prepare-report",
+      "name": "Preparar Relatorio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2020, 400]
     },
     {
       "parameters": {
         "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
-        "text": "=📊 *Distribuicao concluida!*\n\n📰 {{ $json.titulo }}\n\n✅ Facebook\n✅ Instagram\n✅ Telegram Canal\n✅ WhatsApp\n\n🔗 {{ $json.link }}",
+        "text": "={{ $json.mensagem }}",
         "additionalFields": {
           "parse_mode": "Markdown"
         }
       },
       "id": "telegram-report",
-      "name": "Relatorio de Distribuicao",
+      "name": "Relatorio para Editor",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1200, 340],
+      "position": [2240, 400],
       "credentials": {
         "telegramApi": {
           "id": "telegram-cred",
@@ -177,40 +264,84 @@
       "main": [
         [
           {
-            "node": "Preparar Conteudo Social",
+            "node": "Extrair Dados do Post",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Preparar Conteudo Social": {
+    "Extrair Dados do Post": {
       "main": [
         [
           {
-            "node": "Publicar no Facebook",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Instagram - Criar Midia",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Publicar no Telegram Canal",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Enviar WhatsApp (Evolution API)",
+            "node": "Gerar Card HTML",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Instagram - Criar Midia": {
+    "Gerar Card HTML": {
+      "main": [
+        [
+          {
+            "node": "Gerar Imagem Branded (Browserless)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar Imagem Branded (Browserless)": {
+      "main": [
+        [
+          {
+            "node": "Upload Card no WordPress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Card no WordPress": {
+      "main": [
+        [
+          {
+            "node": "Preparar Textos por Canal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Textos por Canal": {
+      "main": [
+        [
+          {
+            "node": "Facebook (Card + Link)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram - Criar Media",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram - Texto",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp - Card + Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram - Criar Media": {
       "main": [
         [
           {
@@ -221,33 +352,66 @@
         ]
       ]
     },
-    "Publicar no Facebook": {
+    "Telegram - Texto": {
       "main": [
         [
           {
-            "node": "Relatorio de Distribuicao",
+            "node": "Telegram - Card Imagem",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Publicar no Telegram Canal": {
+    "Facebook (Card + Link)": {
       "main": [
         [
           {
-            "node": "Relatorio de Distribuicao",
+            "node": "Preparar Relatorio",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Enviar WhatsApp (Evolution API)": {
+    "WhatsApp - Card + Texto": {
       "main": [
         [
           {
-            "node": "WhatsApp - Enviar com Imagem",
+            "node": "Preparar Relatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Card Imagem": {
+      "main": [
+        [
+          {
+            "node": "Preparar Relatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram - Publicar": {
+      "main": [
+        [
+          {
+            "node": "Preparar Relatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Relatorio": {
+      "main": [
+        [
+          {
+            "node": "Relatorio para Editor",
             "type": "main",
             "index": 0
           }

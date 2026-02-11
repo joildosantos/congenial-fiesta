@@ -1,0 +1,203 @@
+{
+  "name": "Resumo Semanal - Analytics e Metricas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtDay": 0,
+              "triggerAtHour": 20
+            }
+          ]
+        }
+      },
+      "id": "cron-domingo",
+      "name": "Agenda (Domingo 20h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 340]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.WORDPRESS_URL }}/wp-json/wp/v2/posts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "per_page",
+              "value": "20"
+            },
+            {
+              "name": "after",
+              "value": "={{ new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() }}"
+            },
+            {
+              "name": "orderby",
+              "value": "date"
+            },
+            {
+              "name": "order",
+              "value": "desc"
+            },
+            {
+              "name": "_fields",
+              "value": "id,title,link,date,categories,tags"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "wp-get-posts",
+      "name": "Buscar Posts da Semana (WP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 340],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "wp-cred",
+          "name": "WordPress Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pautas-frias"
+        },
+        "options": {}
+      },
+      "id": "sheets-read-all",
+      "name": "Ler Planilha Completa",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 540],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $('Buscar Posts da Semana (WP)').all();\nconst pautas = $('Ler Planilha Completa').all();\n\n// Contadores da planilha\nlet totalPautas = pautas.length;\nlet pendentes = 0, sugestoes = 0, publicadas = 0, rejeitadas = 0;\nfor (const p of pautas) {\n  const status = (p.json.status || '').toLowerCase();\n  if (status === 'pendente') pendentes++;\n  else if (status === 'sugestao') sugestoes++;\n  else if (status === 'publicado') publicadas++;\n  else if (status === 'rejeitado') rejeitadas++;\n}\n\n// Territorios cobertos\nconst territorios = new Set();\nfor (const p of pautas) {\n  if (p.json.territorio_tipo) territorios.add(p.json.territorio_tipo);\n}\n\n// Posts da semana\nconst postCount = posts.length;\nconst postList = posts.slice(0, 10).map((p, i) => {\n  const title = p.json.title?.rendered || p.json.title || '(sem titulo)';\n  return `  ${i + 1}. ${title}`;\n}).join('\\n');\n\n// Dia da semana com mais publicacoes\nconst dayCount = {};\nfor (const p of posts) {\n  const day = new Date(p.json.date).toLocaleDateString('pt-BR', { weekday: 'long' });\n  dayCount[day] = (dayCount[day] || 0) + 1;\n}\nconst bestDay = Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0];\n\nconst msg = `📊 *RESUMO SEMANAL - Jornal Espaco do Povo*\\n` +\n  `📅 Semana de ${new Date(Date.now() - 7*24*60*60*1000).toLocaleDateString('pt-BR')} a ${new Date().toLocaleDateString('pt-BR')}\\n\\n` +\n  `📰 *Publicacoes da semana:* ${postCount}\\n` +\n  (postList ? postList + '\\n\\n' : '\\n') +\n  (bestDay ? `📆 *Melhor dia:* ${bestDay[0]} (${bestDay[1]} posts)\\n\\n` : '') +\n  `📋 *Banco de Pautas:*\\n` +\n  `  📝 Total: ${totalPautas}\\n` +\n  `  ⏳ Pendentes: ${pendentes}\\n` +\n  `  💡 Sugestoes (auto-pesquisa): ${sugestoes}\\n` +\n  `  ✅ Publicadas: ${publicadas}\\n` +\n  `  ❌ Rejeitadas: ${rejeitadas}\\n\\n` +\n  `🗺 *Territorios mapeados:* ${territorios.size > 0 ? [...territorios].join(', ') : 'nenhum ainda'}\\n\\n` +\n  `💡 *Dica da semana:* ${sugestoes > 5 ? 'Voce tem ' + sugestoes + ' sugestoes de pauta aguardando revisao. Revise a planilha!' : pendentes > 0 ? 'Existem ' + pendentes + ' pautas prontas para publicacao.' : 'Banco de pautas esta em dia! Continue assim.'}\\n\\n` +\n  `_Gerado automaticamente pelo sistema de automacao._`;\n\nreturn [{ json: { mensagem: msg } }];"
+      },
+      "id": "gerar-resumo",
+      "name": "Gerar Resumo Semanal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 440]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
+        "text": "={{ $json.mensagem }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_markup": {
+            "inline_keyboard": [
+              [
+                {
+                  "text": "📊 Abrir Planilha",
+                  "url": "https://docs.google.com/spreadsheets/d/{{ $env.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+                },
+                {
+                  "text": "📰 Abrir Site",
+                  "url": "={{ $env.WORDPRESS_URL }}"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "telegram-resumo",
+      "name": "Enviar Resumo (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [920, 440],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agenda (Domingo 20h)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Posts da Semana (WP)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ler Planilha Completa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Posts da Semana (WP)": {
+      "main": [
+        [
+          {
+            "node": "Gerar Resumo Semanal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Planilha Completa": {
+      "main": [
+        [
+          {
+            "node": "Gerar Resumo Semanal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar Resumo Semanal": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resumo (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Sao_Paulo"
+  },
+  "tags": [
+    {
+      "name": "analytics"
+    },
+    {
+      "name": "jornal-espaco-do-povo"
+    }
+  ]
+}
