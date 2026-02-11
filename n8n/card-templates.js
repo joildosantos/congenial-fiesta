@@ -13,10 +13,10 @@ const BRAND = {
   subtitulo: 'JORNAL COMUNITÁRIO',
   handle: '@espacodopovo',
   site: 'www.espacodopovo.com.br',
-  // Logo em base64 ou URL - substituir pela logo real
-  logoUrl: '',
   corPrimaria: '#c0392b',
   corSecundaria: '#1a1a2e',
+  corLime: '#CCFF00',
+  logoSvg: '<svg viewBox="0 0 24 24" fill="#0A0A0A"><path d="M12 2 L14 9 L21 10 L14 11 L12 18 L10 11 L3 10 L10 9 Z"/></svg>',
 };
 
 const CORES_EDITORIA = {
@@ -86,12 +86,11 @@ body { width:${w}px; height:${h}px; overflow:hidden; font-family:'Inter',sans-se
 .logo-area { display:flex; align-items:center; gap:14px; }
 .logo-icon {
   width:${isSquare ? 54 : 46}px; height:${isSquare ? 54 : 46}px;
-  background: ${BRAND.corPrimaria};
-  border-radius: 10px;
+  background: ${BRAND.corLime};
+  border-radius: 50%;
   display:flex; align-items:center; justify-content:center;
-  font-size: ${isSquare ? 24 : 20}px; font-weight:900; color:white;
-  letter-spacing:-1px;
 }
+.logo-icon svg { width:${isSquare ? 28 : 24}px; height:${isSquare ? 28 : 24}px; }
 .logo-text {
   color:white; font-weight:800; font-size:${isSquare ? 18 : 15}px;
   line-height:1.15; text-transform:uppercase; letter-spacing:1px;
@@ -145,7 +144,7 @@ ${autor ? `.autor {
   <div class="bg"></div>
   <div class="top">
     <div class="logo-area">
-      <div class="logo-icon">EP</div>
+      <div class="logo-icon">${BRAND.logoSvg}</div>
       <div class="logo-text">${BRAND.nome}<span class="sub">${BRAND.subtitulo}</span></div>
     </div>
     <div class="badge">${(editoria || 'NOTICIAS').toUpperCase()}</div>
@@ -204,10 +203,10 @@ body { width:${w}px; height:${h}px; overflow:hidden; font-family:'Inter',sans-se
 .logo-area { display:flex; align-items:center; gap:14px; }
 .logo-icon {
   width:${isSquare ? 54 : 46}px; height:${isSquare ? 54 : 46}px;
-  background:white; border-radius:10px;
+  background:${BRAND.corLime}; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  font-size:${isSquare ? 24 : 20}px; font-weight:900; color:#c0392b;
 }
+.logo-icon svg { width:${isSquare ? 28 : 24}px; height:${isSquare ? 28 : 24}px; }
 .logo-text { color:white; font-weight:800; font-size:${isSquare ? 18 : 15}px; line-height:1.15; text-transform:uppercase; letter-spacing:1px; }
 .logo-text .sub { font-size:${isSquare ? 10 : 9}px; font-weight:600; opacity:0.6; letter-spacing:2.5px; display:block; margin-top:2px; }
 .urgente-badge {
@@ -240,7 +239,7 @@ body { width:${w}px; height:${h}px; overflow:hidden; font-family:'Inter',sans-se
   <div class="bg"></div>
   <div class="top">
     <div class="logo-area">
-      <div class="logo-icon">EP</div>
+      <div class="logo-icon">${BRAND.logoSvg}</div>
       <div class="logo-text">${BRAND.nome}<span class="sub">${BRAND.subtitulo}</span></div>
     </div>
     <div class="urgente-badge">URGENTE</div>
@@ -290,10 +289,10 @@ body { width:${w}px; height:${h}px; overflow:hidden; font-family:'Inter',sans-se
 .logo-area { display:flex; align-items:center; gap:14px; }
 .logo-icon {
   width:${isSquare ? 48 : 42}px; height:${isSquare ? 48 : 42}px;
-  background:${BRAND.corPrimaria}; border-radius:10px;
+  background:${BRAND.corLime}; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  font-size:${isSquare ? 22 : 18}px; font-weight:900; color:white;
 }
+.logo-icon svg { width:${isSquare ? 26 : 22}px; height:${isSquare ? 26 : 22}px; }
 .logo-text { color:white; font-weight:800; font-size:${isSquare ? 16 : 14}px; line-height:1.15; text-transform:uppercase; letter-spacing:1px; }
 .logo-text .sub { font-size:${isSquare ? 9 : 8}px; font-weight:600; opacity:0.5; letter-spacing:2.5px; display:block; margin-top:2px; }
 .badge { background:${cor}; color:white; padding:7px 18px; border-radius:4px; font-size:${isSquare ? 11 : 10}px; font-weight:800; letter-spacing:3px; text-transform:uppercase; }
@@ -330,7 +329,7 @@ body { width:${w}px; height:${h}px; overflow:hidden; font-family:'Inter',sans-se
 <div class="card">
   <div class="top">
     <div class="logo-area">
-      <div class="logo-icon">EP</div>
+      <div class="logo-icon">${BRAND.logoSvg}</div>
       <div class="logo-text">${BRAND.nome}<span class="sub">${BRAND.subtitulo}</span></div>
     </div>
     <div class="badge">${(editoria || 'COLUNA').toUpperCase()}</div>
@@ -393,10 +392,10 @@ body { width:${w}px; height:${h}px; overflow:hidden; font-family:'Inter',sans-se
 .logo-area { display:flex; align-items:center; gap:14px; }
 .logo-icon {
   width:${isSquare ? 48 : 42}px; height:${isSquare ? 48 : 42}px;
-  background:${BRAND.corPrimaria}; border-radius:10px;
+  background:${BRAND.corLime}; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  font-size:${isSquare ? 22 : 18}px; font-weight:900; color:white;
 }
+.logo-icon svg { width:${isSquare ? 26 : 22}px; height:${isSquare ? 26 : 22}px; }
 .logo-text { color:white; font-weight:800; font-size:${isSquare ? 16 : 14}px; line-height:1.15; text-transform:uppercase; letter-spacing:1px; }
 .logo-text .sub { font-size:${isSquare ? 9 : 8}px; font-weight:600; opacity:0.5; letter-spacing:2.5px; display:block; margin-top:2px; }
 .badge { background:${cor}; color:white; padding:7px 18px; border-radius:4px; font-size:${isSquare ? 11 : 10}px; font-weight:800; letter-spacing:3px; text-transform:uppercase; }
@@ -431,7 +430,7 @@ body { width:${w}px; height:${h}px; overflow:hidden; font-family:'Inter',sans-se
   <div class="deco-circle"></div>
   <div class="top">
     <div class="logo-area">
-      <div class="logo-icon">EP</div>
+      <div class="logo-icon">${BRAND.logoSvg}</div>
       <div class="logo-text">${BRAND.nome}<span class="sub">${BRAND.subtitulo}</span></div>
     </div>
     <div class="badge">${(editoria || 'NOTICIAS').toUpperCase()}</div>
