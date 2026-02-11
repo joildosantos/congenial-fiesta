@@ -1,0 +1,460 @@
+{
+  "name": "Conteudo Frio - Curiosidades da Periferia",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Agenda (Seg/Qua/Sex 8h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300],
+      "notes": "Ajustar dias da semana conforme necessidade. Padrao: seg, qua, sex as 8h."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pautas-frias"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "pendente"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "id": "google-sheets-read",
+      "name": "Buscar Proxima Pauta",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      },
+      "notes": "Busca a proxima pauta com status 'pendente' na planilha de pautas frias."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "check-pauta",
+              "leftValue": "={{ $json.titulo_rascunho }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-pauta-existe",
+      "name": "Pauta Encontrada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"meta-llama/llama-3.1-8b-instruct:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Voce e um jornalista comunitario do Jornal Espaco do Povo, um veiculo de comunicacao das periferias de Sao Paulo. Sua missao e reescrever conteudos com linguagem acessivel, envolvente e que valorize a identidade periferica. Use tom informativo mas proximo do leitor. Evite termos tecnicos ou elitistas. Sempre pense no morador da periferia como seu leitor principal.\\n\\nResponda SEMPRE em formato JSON valido com as chaves: titulo, conteudo_html, meta_description.\\n\\n- titulo: maximo 70 caracteres, otimizado para SEO e engajamento\\n- conteudo_html: entre 300 e 600 palavras, em HTML simples (p, h2, h3, ul, li, strong, em). Inclua subtitulos.\\n- meta_description: maximo 160 caracteres, resumo atrativo para Google\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Reescreva o seguinte conteudo para publicacao no site:\\n\\nTitulo rascunho: {{ $json.titulo_rascunho }}\\nTema: {{ $json.tema }}\\nBairro/Regiao: {{ $json.bairro }}\\nTipo: {{ $json.tipo }}\\nNotas/Informacoes: {{ $json.notas }}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500\n}"
+      },
+      "id": "openrouter-rewrite",
+      "name": "LLM Reescrita (OpenRouter)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 240],
+      "notes": "Usa modelo gratuito do OpenRouter para reescrever titulo e conteudo. Fallback: trocar modelo para google/gemma-2-9b-it:free se llama estiver indisponivel."
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices[0].message.content;\n\n// Tenta parsear o JSON da resposta do LLM\nlet parsed;\ntry {\n  // Remove possivel markdown code block\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Fallback: extrai campos com regex\n  const tituloMatch = content.match(/\"titulo\"\\s*:\\s*\"([^\"]+)\"/);\n  const metaMatch = content.match(/\"meta_description\"\\s*:\\s*\"([^\"]+)\"/);\n  const htmlMatch = content.match(/\"conteudo_html\"\\s*:\\s*\"([\\s\\S]+?)\"\\s*[,}]/);\n  \n  parsed = {\n    titulo: tituloMatch ? tituloMatch[1] : 'Titulo nao gerado',\n    conteudo_html: htmlMatch ? htmlMatch[1] : '<p>Conteudo nao gerado</p>',\n    meta_description: metaMatch ? metaMatch[1] : ''\n  };\n}\n\n// Pega dados da pauta original (do Google Sheets)\nconst pauta = $('Buscar Proxima Pauta').first().json;\n\nreturn [{\n  json: {\n    titulo: parsed.titulo,\n    conteudo_html: parsed.conteudo_html,\n    meta_description: parsed.meta_description,\n    imagem_url: pauta.imagem_url || '',\n    categorias: pauta.categorias || '',\n    tags: pauta.tags || '',\n    bairro: pauta.bairro || '',\n    tipo: pauta.tipo || '',\n    row_number: pauta.row_number || pauta.rowIndex || '',\n    titulo_rascunho: pauta.titulo_rascunho || ''\n  }\n}];"
+      },
+      "id": "parse-llm-response",
+      "name": "Processar Resposta LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 240]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
+        "text": "=📰 *APROVACAO - Conteudo Frio*\n\n*Titulo:* {{ $json.titulo }}\n\n*Tipo:* {{ $json.tipo }} | *Bairro:* {{ $json.bairro }}\n\n*Resumo:* {{ $json.meta_description }}\n\n*Categorias:* {{ $json.categorias }}\n*Tags:* {{ $json.tags }}\n\n---\n_Titulo original:_ {{ $json.titulo_rascunho }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_markup": {
+            "inline_keyboard": [
+              [
+                {
+                  "text": "✅ Aprovar",
+                  "callback_data": "aprovar_frio"
+                },
+                {
+                  "text": "✏️ Editar Titulo",
+                  "callback_data": "editar_frio"
+                },
+                {
+                  "text": "❌ Rejeitar",
+                  "callback_data": "rejeitar_frio"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "telegram-send-approval",
+      "name": "Enviar para Aprovacao (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1320, 240],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-callback-frio",
+        "options": {}
+      },
+      "id": "webhook-callback",
+      "name": "Webhook Callback Telegram",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [1320, 460],
+      "notes": "Recebe o callback do botao clicado no Telegram. Configure o Telegram Bot webhook para apontar para esta URL."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "check-approved",
+              "leftValue": "={{ $json.callback_data }}",
+              "rightValue": "aprovar_frio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-approved",
+      "name": "Aprovado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, 460]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WORDPRESS_URL }}/wp-json/wp/v2/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Disposition",
+              "value": "=attachment; filename=\"imagem-destaque.jpg\""
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "wp-upload-image",
+      "name": "WP Upload Imagem",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 380],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "wp-cred",
+          "name": "WordPress Basic Auth"
+        }
+      },
+      "notes": "Upload da imagem destacada para o WordPress. Requer download previo da imagem (adicionar node HTTP Request antes se imagem for URL externa)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WORDPRESS_URL }}/wp-json/wp/v2/posts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"{{ $json.titulo }}\",\n  \"content\": {{ JSON.stringify($json.conteudo_html) }},\n  \"status\": \"publish\",\n  \"featured_media\": {{ $json.media_id || 0 }},\n  \"categories\": [{{ $json.category_ids || '' }}],\n  \"tags\": [{{ $json.tag_ids || '' }}],\n  \"meta\": {\n    \"_yoast_wpseo_metadesc\": \"{{ $json.meta_description }}\"\n  }\n}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "wp-create-post",
+      "name": "Publicar no WordPress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1980, 380],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "wp-cred",
+          "name": "WordPress Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pautas-frias"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "publicado",
+            "url_publicacao": "={{ $json.link }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-update-status",
+      "name": "Atualizar Status na Planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2200, 380],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
+        "text": "=✅ *Publicado com sucesso!*\n\n{{ $json.link }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-confirm",
+      "name": "Confirmar Publicacao (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2200, 540],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-op-rejected",
+      "name": "Rejeitado - Fim",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1760, 560],
+      "notes": "Pauta rejeitada. O status sera atualizado para 'rejeitado' na planilha."
+    }
+  ],
+  "connections": {
+    "Agenda (Seg/Qua/Sex 8h)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Proxima Pauta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Proxima Pauta": {
+      "main": [
+        [
+          {
+            "node": "Pauta Encontrada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pauta Encontrada?": {
+      "main": [
+        [
+          {
+            "node": "LLM Reescrita (OpenRouter)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Reescrita (OpenRouter)": {
+      "main": [
+        [
+          {
+            "node": "Processar Resposta LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Resposta LLM": {
+      "main": [
+        [
+          {
+            "node": "Enviar para Aprovacao (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Callback Telegram": {
+      "main": [
+        [
+          {
+            "node": "Aprovado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aprovado?": {
+      "main": [
+        [
+          {
+            "node": "WP Upload Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejeitado - Fim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WP Upload Imagem": {
+      "main": [
+        [
+          {
+            "node": "Publicar no WordPress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar no WordPress": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Status na Planilha",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Confirmar Publicacao (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Sao_Paulo"
+  },
+  "tags": [
+    {
+      "name": "conteudo-frio"
+    },
+    {
+      "name": "jornal-espaco-do-povo"
+    }
+  ]
+}

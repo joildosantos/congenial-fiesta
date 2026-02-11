@@ -1,0 +1,272 @@
+{
+  "name": "Distribuicao Multi-Canal",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wp-post-published",
+        "options": {}
+      },
+      "id": "webhook-wp",
+      "name": "Webhook - Post Publicado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 340],
+      "notes": "Acionado pelo WordPress quando um post e publicado. Configurar webhook no WP (plugin WP Webhooks ou funcao customizada no functions.php)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const post = $input.first().json;\n\n// Extrai dados do post WordPress\nconst titulo = post.post_title || post.title?.rendered || '';\nconst link = post.guid || post.link || '';\nconst excerpt = (post.post_excerpt || post.excerpt?.rendered || '').replace(/<[^>]*>/g, '').substring(0, 200);\nconst featuredImage = post.featured_image_url || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';\nconst categories = (post.categories_names || []).join(', ');\n\n// Texto para redes sociais\nconst socialText = `${titulo}\\n\\n${excerpt}...\\n\\n📰 Leia mais: ${link}\\n\\n#JornalEspacoDoPovo #Periferia #Noticias`;\n\n// Texto curto para WhatsApp\nconst whatsappText = `📰 *${titulo}*\\n\\n${excerpt}...\\n\\n👉 ${link}`;\n\n// Caption Instagram (sem link clicavel)\nconst instaCaption = `${titulo}\\n\\n${excerpt}...\\n\\n📰 Link na bio!\\n\\n#JornalEspacoDoPovo #Periferia #Noticias #SP #Comunidade #Quebrada`;\n\nreturn [{\n  json: {\n    titulo,\n    link,\n    excerpt,\n    featuredImage,\n    categories,\n    socialText,\n    whatsappText,\n    instaCaption,\n    post_id: post.ID || post.id\n  }\n}];"
+      },
+      "id": "prepare-social",
+      "name": "Preparar Conteudo Social",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $env.FACEBOOK_PAGE_ID }}/feed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": {{ JSON.stringify($json.socialText) }},\n  \"link\": \"{{ $json.link }}\",\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
+        "options": {}
+      },
+      "id": "facebook-post",
+      "name": "Publicar no Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 140],
+      "notes": "Publica link + texto na Facebook Page. Requer Page Access Token com permissao pages_manage_posts."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $env.INSTAGRAM_BUSINESS_ACCOUNT_ID }}/media",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"image_url\": \"{{ $json.featuredImage }}\",\n  \"caption\": {{ JSON.stringify($json.instaCaption) }},\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
+        "options": {}
+      },
+      "id": "instagram-create-media",
+      "name": "Instagram - Criar Midia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300],
+      "notes": "Etapa 1 do Instagram: cria o container de midia. Etapa 2 (Publicar) usa o creation_id retornado."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $env.INSTAGRAM_BUSINESS_ACCOUNT_ID }}/media_publish",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"creation_id\": \"{{ $json.id }}\",\n  \"access_token\": \"{{ $env.FACEBOOK_PAGE_ACCESS_TOKEN }}\"\n}",
+        "options": {}
+      },
+      "id": "instagram-publish",
+      "name": "Instagram - Publicar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300],
+      "notes": "Etapa 2: publica a midia criada na etapa anterior."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHANNEL_ID }}",
+        "text": "={{ $json.socialText }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-channel",
+      "name": "Publicar no Telegram Canal",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [720, 460],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Envia para o canal do Telegram. O bot precisa ser admin do canal."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_SERVER_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $env.WHATSAPP_GROUP_ID }}\",\n  \"text\": {{ JSON.stringify($json.whatsappText) }}\n}",
+        "options": {}
+      },
+      "id": "whatsapp-send",
+      "name": "Enviar WhatsApp (Evolution API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 620],
+      "notes": "Envia mensagem via Evolution API para grupo ou lista de transmissao do WhatsApp."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_SERVER_URL }}/message/sendMedia/{{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $env.WHATSAPP_GROUP_ID }}\",\n  \"mediatype\": \"image\",\n  \"media\": \"{{ $json.featuredImage }}\",\n  \"caption\": {{ JSON.stringify($json.whatsappText) }}\n}",
+        "options": {}
+      },
+      "id": "whatsapp-send-image",
+      "name": "WhatsApp - Enviar com Imagem",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 620],
+      "notes": "Alternativa: envia imagem destacada junto com o texto. Usar este OU o node anterior."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
+        "text": "=📊 *Distribuicao concluida!*\n\n📰 {{ $json.titulo }}\n\n✅ Facebook\n✅ Instagram\n✅ Telegram Canal\n✅ WhatsApp\n\n🔗 {{ $json.link }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-report",
+      "name": "Relatorio de Distribuicao",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, 340],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Post Publicado": {
+      "main": [
+        [
+          {
+            "node": "Preparar Conteudo Social",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Conteudo Social": {
+      "main": [
+        [
+          {
+            "node": "Publicar no Facebook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram - Criar Midia",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Publicar no Telegram Canal",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enviar WhatsApp (Evolution API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram - Criar Midia": {
+      "main": [
+        [
+          {
+            "node": "Instagram - Publicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar no Facebook": {
+      "main": [
+        [
+          {
+            "node": "Relatorio de Distribuicao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar no Telegram Canal": {
+      "main": [
+        [
+          {
+            "node": "Relatorio de Distribuicao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp (Evolution API)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp - Enviar com Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Sao_Paulo"
+  },
+  "tags": [
+    {
+      "name": "distribuicao"
+    },
+    {
+      "name": "jornal-espaco-do-povo"
+    }
+  ]
+}
