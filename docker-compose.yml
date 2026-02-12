@@ -61,11 +61,16 @@ services:
       - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
       - SERVER_URL=${EVOLUTION_SERVER_URL:-http://localhost:8080}
       - DEL_INSTANCE=false
-      - STORE_MESSAGES=true
-      - STORE_MESSAGE_UP=true
-      - STORE_CONTACTS=true
-      - STORE_CHATS=true
+      - DATABASE_PROVIDER=postgresql
       - DATABASE_ENABLED=false
+      - DATABASE_SAVE_DATA_INSTANCE=false
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=false
+      - DATABASE_SAVE_MESSAGE_UPDATE=false
+      - DATABASE_SAVE_DATA_CONTACTS=false
+      - DATABASE_SAVE_DATA_CHATS=false
+      - DATABASE_SAVE_DATA_LABELS=false
+      - DATABASE_SAVE_DATA_HISTORIC=false
+      - DATABASE_CONNECTION_URI=
       - RABBITMQ_ENABLED=false
       - WEBSOCKET_ENABLED=false
     volumes:
