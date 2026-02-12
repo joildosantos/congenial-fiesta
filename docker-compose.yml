@@ -71,7 +71,7 @@ services:
       - DATABASE_SAVE_DATA_CHATS=false
       - DATABASE_SAVE_DATA_LABELS=false
       - DATABASE_SAVE_DATA_HISTORIC=false
-      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER:-n8n}:${POSTGRES_PASSWORD:-n8n}@postgres:5432/evolution?schema=public
+      - DATABASE_CONNECTION_URI=${DATABASE_CONNECTION_URI}
       - RABBITMQ_ENABLED=false
       - WEBSOCKET_ENABLED=false
     volumes:
