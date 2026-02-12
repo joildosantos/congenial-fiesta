@@ -1,0 +1,453 @@
+{
+  "name": "Conteudo Diario - Noticias das Periferias",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "cron-diario",
+      "name": "Agenda Diaria (6h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.feed_url }}",
+        "options": {}
+      },
+      "id": "rss-agencia-brasil",
+      "name": "RSS Agencia Brasil",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [440, 140],
+      "notes": "Feed: http://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml"
+    },
+    {
+      "parameters": {
+        "url": "https://g1.globo.com/rss/g1/",
+        "options": {}
+      },
+      "id": "rss-g1",
+      "name": "RSS G1",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://www1.folha.uol.com.br/rss/cotidiano.xml",
+        "options": {}
+      },
+      "id": "rss-folha",
+      "name": "RSS Folha Cotidiano",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [440, 460]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-feeds",
+      "name": "Combinar Feeds",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst now = new Date();\nconst oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\n// Palavras-chave de interesse para moradores de periferia\nconst keywords = [\n  'salario minimo', 'salario-minimo', 'bolsa familia', 'auxilio',\n  'cad.?unico', 'cadastro unico', 'sus', 'ubs', 'vacinacao', 'vacina',\n  'transporte', 'onibus', 'metro', 'trem', 'bilhete unico',\n  'moradia', 'minha casa', 'aluguel', 'habitacao',\n  'educacao', 'escola', 'creche', 'enem', 'prouni', 'fies', 'sisu',\n  'emprego', 'trabalho', 'carteira assinada', 'clt',\n  'periferia', 'favela', 'comunidade', 'quebrada',\n  'tarifa', 'energia', 'luz', 'agua', 'saneamento',\n  'saude', 'hospital', 'upa', 'medicamento',\n  'programa social', 'beneficio', 'inss', 'aposentadoria',\n  'cesta basica', 'inflacao', 'gas', 'alimentacao',\n  'seguranca', 'violencia', 'policia',\n  'cultura', 'evento gratuito', 'show gratuito'\n];\n\nconst regex = new RegExp(keywords.join('|'), 'i');\n\nconst filtered = items.filter(item => {\n  const title = (item.json.title || '').toLowerCase();\n  const description = (item.json.description || item.json.content || '').toLowerCase();\n  const text = title + ' ' + description;\n  \n  // Filtra por data (ultimas 24h) e por palavras-chave\n  const pubDate = new Date(item.json.pubDate || item.json.isoDate || now);\n  const isRecent = pubDate >= oneDayAgo;\n  const isRelevant = regex.test(text);\n  \n  return isRecent && isRelevant;\n});\n\n// Limita a 10 noticias para classificacao pelo LLM\nreturn filtered.slice(0, 10);"
+      },
+      "id": "filter-keywords",
+      "name": "Filtrar por Palavras-Chave",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"meta-llama/llama-3.1-8b-instruct:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Voce e um editor do Jornal Espaco do Povo. Classifique a relevancia desta noticia para moradores de periferias e favelas de Sao Paulo em uma escala de 0 a 10. Considere: impacto direto na vida, utilidade pratica, urgencia.\\n\\nResponda APENAS em JSON: {\\\"score\\\": N, \\\"justificativa\\\": \\\"breve\\\", \\\"categoria_sugerida\\\": \\\"nome\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Titulo: {{ $json.title }}\\nResumo: {{ ($json.description || $json.contentSnippet || '').substring(0, 500) }}\"\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 200\n}"
+      },
+      "id": "llm-classify",
+      "name": "LLM Classificar Relevancia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 300],
+      "notes": "Classifica cada noticia de 0-10 para relevancia periferica."
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst scored = [];\n\nfor (const item of items) {\n  try {\n    const content = item.json.choices[0].message.content;\n    const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    const parsed = JSON.parse(cleaned);\n    \n    if (parsed.score >= 7) {\n      scored.push({\n        json: {\n          title: item.json._originalTitle || item.json.title,\n          description: item.json._originalDescription || item.json.description,\n          link: item.json._originalLink || item.json.link,\n          image_url: item.json._originalImage || '',\n          score: parsed.score,\n          justificativa: parsed.justificativa,\n          categoria_sugerida: parsed.categoria_sugerida\n        }\n      });\n    }\n  } catch (e) {\n    // Ignora noticias com erro de parse\n  }\n}\n\n// Ordena por score e pega top 5\nscored.sort((a, b) => b.json.score - a.json.score);\nreturn scored.slice(0, 5);"
+      },
+      "id": "filter-score",
+      "name": "Filtrar Score >= 7 (Top 5)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"meta-llama/llama-3.1-8b-instruct:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Voce e um jornalista comunitario do Jornal Espaco do Povo. Reescreva a noticia abaixo com linguagem acessivel e foco no impacto para moradores de periferias. Explique termos tecnicos. Destaque o que o morador precisa saber e fazer.\\n\\nResponda em JSON valido:\\n{\\n  \\\"titulo\\\": \\\"max 70 chars, SEO + engajamento\\\",\\n  \\\"conteudo_html\\\": \\\"200-400 palavras em HTML (p, h2, h3, ul, li, strong, em)\\\",\\n  \\\"meta_description\\\": \\\"max 160 chars\\\",\\n  \\\"categorias\\\": [\\\"categoria1\\\", \\\"categoria2\\\"],\\n  \\\"tags\\\": [\\\"tag1\\\", \\\"tag2\\\", \\\"tag3\\\"]\\n}\\n\\nINCLUA credito a fonte original no final do conteudo.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Titulo original: {{ $json.title }}\\nResumo: {{ ($json.description || '').substring(0, 800) }}\\nFonte: {{ $json.link }}\\nCategoria sugerida: {{ $json.categoria_sugerida }}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500\n}"
+      },
+      "id": "llm-rewrite-daily",
+      "name": "LLM Reescrita Diaria",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  try {\n    const content = item.json.choices[0].message.content;\n    const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    const parsed = JSON.parse(cleaned);\n    \n    results.push({\n      json: {\n        titulo: parsed.titulo,\n        conteudo_html: parsed.conteudo_html,\n        meta_description: parsed.meta_description,\n        categorias: parsed.categorias || [],\n        tags: parsed.tags || [],\n        fonte_url: item.json._originalLink || '',\n        imagem_url: item.json._originalImage || '',\n        score: item.json._score || 0\n      }\n    });\n  } catch (e) {\n    // Ignora items com erro\n  }\n}\n\nreturn results;"
+      },
+      "id": "parse-rewrite-daily",
+      "name": "Processar Reescritas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
+        "text": "=📰 *APROVACAO - Noticia Diaria* ({{ $runIndex + 1 }})\n\n*Titulo:* {{ $json.titulo }}\n\n*Resumo:* {{ $json.meta_description }}\n\n*Categorias:* {{ $json.categorias.join(', ') }}\n*Tags:* {{ $json.tags.join(', ') }}\n*Fonte:* {{ $json.fonte_url }}\n*Score relevancia:* {{ $json.score }}/10",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_markup": {
+            "inline_keyboard": [
+              [
+                {
+                  "text": "✅ Aprovar",
+                  "callback_data": "aprovar_diario_{{ $runIndex }}"
+                },
+                {
+                  "text": "✏️ Editar",
+                  "callback_data": "editar_diario_{{ $runIndex }}"
+                },
+                {
+                  "text": "❌ Rejeitar",
+                  "callback_data": "rejeitar_diario_{{ $runIndex }}"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "telegram-approval-daily",
+      "name": "Enviar Aprovacao Diaria (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1980, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-callback-diario",
+        "options": {}
+      },
+      "id": "webhook-callback-daily",
+      "name": "Webhook Callback Diario",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [1980, 500],
+      "notes": "Recebe callbacks de aprovacao/rejeicao do conteudo diario."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "check-daily-approved",
+              "leftValue": "={{ $json.callback_data }}",
+              "rightValue": "aprovar_diario",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-daily-approved",
+      "name": "Aprovado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WORDPRESS_URL }}/wp-json/wp/v2/posts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"{{ $json.titulo }}\",\n  \"content\": {{ JSON.stringify($json.conteudo_html) }},\n  \"status\": \"publish\",\n  \"categories\": [{{ $json.category_ids || '' }}],\n  \"tags\": [{{ $json.tag_ids || '' }}],\n  \"meta\": {\n    \"_yoast_wpseo_metadesc\": \"{{ $json.meta_description }}\"\n  }\n}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "wp-publish-daily",
+      "name": "Publicar no WordPress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2420, 420],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "wp-cred",
+          "name": "WordPress Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
+        "text": "=✅ *Publicado!* {{ $json.link }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-confirm-daily",
+      "name": "Confirmar Publicacao",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2640, 420],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agenda Diaria (6h)": {
+      "main": [
+        [
+          {
+            "node": "RSS Agencia Brasil",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS G1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Folha Cotidiano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Agencia Brasil": {
+      "main": [
+        [
+          {
+            "node": "Combinar Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS G1": {
+      "main": [
+        [
+          {
+            "node": "Combinar Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Folha Cotidiano": {
+      "main": [
+        [
+          {
+            "node": "Combinar Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combinar Feeds": {
+      "main": [
+        [
+          {
+            "node": "Filtrar por Palavras-Chave",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar por Palavras-Chave": {
+      "main": [
+        [
+          {
+            "node": "LLM Classificar Relevancia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Classificar Relevancia": {
+      "main": [
+        [
+          {
+            "node": "Filtrar Score >= 7 (Top 5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar Score >= 7 (Top 5)": {
+      "main": [
+        [
+          {
+            "node": "LLM Reescrita Diaria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Reescrita Diaria": {
+      "main": [
+        [
+          {
+            "node": "Processar Reescritas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Reescritas": {
+      "main": [
+        [
+          {
+            "node": "Enviar Aprovacao Diaria (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Callback Diario": {
+      "main": [
+        [
+          {
+            "node": "Aprovado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aprovado?": {
+      "main": [
+        [
+          {
+            "node": "Publicar no WordPress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar no WordPress": {
+      "main": [
+        [
+          {
+            "node": "Confirmar Publicacao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Sao_Paulo"
+  },
+  "tags": [
+    {
+      "name": "conteudo-diario"
+    },
+    {
+      "name": "jornal-espaco-do-povo"
+    }
+  ]
+}

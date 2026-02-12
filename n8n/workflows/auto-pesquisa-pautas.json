@@ -1,0 +1,221 @@
+{
+  "name": "Auto-Pesquisa de Pautas - Territorios Perifericos",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtDay": 1,
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "cron-semanal",
+      "name": "Agenda Semanal (Segunda 7h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rotacao semanal de temas/territorios\nconst territorios = [\n  {\n    tipo: 'favela_urbana',\n    nome: 'Favelas Urbanas de Sao Paulo',\n    descricao: 'Comunidades como Paraisopolis, Heliópolis, Vila Prudente, Jardim Angela, Capao Redondo, Cidade Tiradentes, Brasilandia, M\\'Boi Mirim, Jardim Sao Luis, Grajau',\n    temas: 'historia do bairro, projetos sociais, cultura local, ONGs atuantes, liderancas comunitarias, arte urbana, gastronomia de rua, transporte, saude, educacao, eventos, festas tradicionais, esporte comunitario, empreendedorismo local'\n  },\n  {\n    tipo: 'quilombo',\n    nome: 'Comunidades Quilombolas',\n    descricao: 'Quilombos urbanos e rurais do Brasil: Quilombo do Jabaquara (Santos), Cafundo (Salto de Pirapora), Ivaporunduva (Eldorado), Saracura (SP), Peropava (Registro)',\n    temas: 'historia e resistencia, tradicoes culturais, culinaria quilombola, direitos territoriais, titulacao de terras, agricultura familiar, festas e celebracoes, artesanato, religiosidade, liderancas, desafios atuais, projetos de valorizacao'\n  },\n  {\n    tipo: 'ribeirinha',\n    nome: 'Comunidades Ribeirinhas',\n    descricao: 'Populacoes que vivem as margens de rios: ribeirao Pires, Billings, Guarapiranga em SP, e comunidades amazonicas que inspiram conexao com aguas urbanas',\n    temas: 'relacao com a agua, pesca artesanal, agricultura de varzea, transporte fluvial, impacto ambiental, saneamento, cultura ribeirinha, festas juninas, culinaria de rio, educacao ambiental, preservacao de mananciais'\n  },\n  {\n    tipo: 'caicara',\n    nome: 'Comunidades Caicaras',\n    descricao: 'Comunidades tradicionais do litoral paulista: Ilhabela, Ubatuba, Cananeia, Iguape, Peruibe, Itanhaem',\n    temas: 'pesca artesanal, artesanato caicara, canoa caiçara, culinaria de mar, turismo comunitario, preservacao ambiental, tradicoes orais, festas, danca fandango, direitos territoriais, ameacas imobiliarias'\n  },\n  {\n    tipo: 'periferia_rural',\n    nome: 'Periferias Rurais e Semiurbanas',\n    descricao: 'Areas rurais proximas a centros urbanos: assentamentos MST, acampamentos, distritos rurais de municipios da Grande SP como Parelheiros, Marsilac, e interior paulista',\n    temas: 'agricultura familiar, feira do produtor, horta comunitaria, agroecologia, assentamento, reforma agraria, PAA, PNAE, merenda escolar, ecoturismo, turismo rural, artesanato rural, festas do interior'\n  },\n  {\n    tipo: 'indigena_urbano',\n    nome: 'Comunidades Indigenas Urbanas',\n    descricao: 'Aldeias e comunidades indigenas na Grande SP: Tenonde Pora (Parelheiros), Jaragua (Pico do Jaragua), Krukutu, e indigenas vivendo em contexto urbano',\n    temas: 'cultura e tradicoes, artesanato indigena, alimentacao tradicional, escola indigena bilingue, saude indigena, territorio, demarcacao, festas e rituais, jogos indigenas, sustentabilidade, relacao com a natureza na cidade'\n  },\n  {\n    tipo: 'ocupacao_moradia',\n    nome: 'Ocupacoes e Movimentos de Moradia',\n    descricao: 'Ocupacoes organizadas e movimentos por moradia em SP: MTST, FLM, ocupacoes no centro (Hotel Cambridge, Prestes Maia), conjuntos CDHU e Minha Casa Minha Vida',\n    temas: 'direito a moradia, organizacao coletiva, cozinha comunitaria, biblioteca comunitaria, creche popular, horta na ocupacao, cultura na ocupacao, liderancas, desafios juridicos, solucoes criativas, cooperativismo habitacional'\n  }\n];\n\n// Seleciona territorio da semana baseado na semana do ano\nconst weekNumber = Math.ceil((new Date().getTime() - new Date(new Date().getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000));\nconst index = weekNumber % territorios.length;\nconst territorio = territorios[index];\n\nreturn [{ json: territorio }];"
+      },
+      "id": "selecionar-territorio",
+      "name": "Selecionar Territorio da Semana",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"meta-llama/llama-3.1-8b-instruct:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Voce e um pesquisador editorial do Jornal Espaco do Povo, especializado em territorios perifericos e comunidades tradicionais do Brasil. Sua missao e gerar ideias de pautas jornalisticas ORIGINAIS, relevantes e humanizadas sobre essas comunidades.\\n\\nRegras:\\n- Foque em historias positivas, de resistencia, cultura e utilidade publica\\n- Inclua pautas de servico (como chegar, onde encontrar, eventos gratuitos)\\n- Valorize saberes populares, gastronomia, arte e tradicoes\\n- Sugira pautas investigativas leves (problemas e solucoes da comunidade)\\n- Cada pauta deve ter potencial de engajar leitores nas redes sociais\\n- Pense em curiosidades que o morador da periferia gostaria de saber\\n\\nResponda APENAS em JSON valido. Array com 7 objetos, cada um com:\\n{\\n  \\\"titulo_rascunho\\\": \\\"titulo atrativo (max 80 chars)\\\",\\n  \\\"tema\\\": \\\"categoria (cultura|saude|transporte|educacao|servicos|historia|gastronomia|eventos|esporte|meio-ambiente|empreendedorismo|curiosidade)\\\",\\n  \\\"bairro\\\": \\\"local especifico ou regiao\\\",\\n  \\\"tipo\\\": \\\"tipo (curiosidade|como-chegar|evento|historia|servico|perfil|receita|guia|denuncia-construtiva)\\\",\\n  \\\"notas\\\": \\\"informacoes para pesquisa, dados, nomes, detalhes (min 100 chars)\\\",\\n  \\\"imagem_sugestao\\\": \\\"descricao da imagem ideal para ilustrar\\\",\\n  \\\"potencial_engajamento\\\": \\\"alto|medio\\\"\\n}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Gere 7 pautas originais sobre: {{ $json.nome }}\\n\\nDescricao do territorio: {{ $json.descricao }}\\n\\nTemas para explorar: {{ $json.temas }}\\n\\nIMPORTANTE: As pautas devem ser diversificadas entre os temas sugeridos. Pelo menos 2 devem ser de alta utilidade pratica (servico, como-chegar, guia). Pelo menos 1 deve ser de curiosidade/historia. Pelo menos 1 de cultura/gastronomia.\"\n    }\n  ],\n  \"temperature\": 0.85,\n  \"max_tokens\": 3000\n}"
+      },
+      "id": "llm-gerar-pautas",
+      "name": "LLM Gerar Pautas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices[0].message.content;\nconst territorio = $('Selecionar Territorio da Semana').first().json;\n\nlet pautas;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  pautas = JSON.parse(cleaned);\n} catch (e) {\n  // Tenta extrair array de dentro de um objeto\n  const match = content.match(/\\[([\\s\\S]+)\\]/);\n  if (match) {\n    try {\n      pautas = JSON.parse('[' + match[1] + ']');\n    } catch (e2) {\n      return [{ json: { error: 'Falha ao parsear resposta do LLM', raw: content } }];\n    }\n  } else {\n    return [{ json: { error: 'Resposta do LLM nao contem array', raw: content } }];\n  }\n}\n\n// Formata para inserir na planilha\nconst rows = pautas.map(p => ({\n  json: {\n    titulo_rascunho: p.titulo_rascunho || '',\n    tema: p.tema || '',\n    bairro: p.bairro || territorio.nome || '',\n    tipo: p.tipo || 'curiosidade',\n    notas: (p.notas || '') + '\\n\\n[Imagem sugerida: ' + (p.imagem_sugestao || '') + ']',\n    imagem_url: '',\n    categorias: p.tema || '',\n    tags: [territorio.tipo, p.tema, p.bairro].filter(Boolean).join(','),\n    status: 'sugestao',\n    url_publicacao: '',\n    origem: 'auto-pesquisa',\n    territorio_tipo: territorio.tipo,\n    potencial_engajamento: p.potencial_engajamento || 'medio'\n  }\n}));\n\nreturn rows;"
+      },
+      "id": "parse-pautas",
+      "name": "Processar Pautas Geradas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 340]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pautas-frias"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        },
+        "options": {}
+      },
+      "id": "sheets-append",
+      "name": "Adicionar Pautas na Planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 340],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const pautas = $input.all();\nconst territorio = $('Selecionar Territorio da Semana').first().json;\n\nconst lista = pautas.map((p, i) => \n  `${i + 1}. *${p.json.titulo_rascunho}* (${p.json.tipo}) ${p.json.potencial_engajamento === 'alto' ? '🔥' : ''}`\n).join('\\n');\n\nreturn [{\n  json: {\n    mensagem: `📋 *Auto-Pesquisa Semanal*\\n\\n🗺 Territorio: *${territorio.nome}*\\nTipo: ${territorio.tipo}\\n\\n${lista}\\n\\n✅ ${pautas.length} pautas adicionadas na planilha com status \"sugestao\"\\n\\n_Revise e altere o status para \"pendente\" para incluir na fila de publicacao._`\n  }\n}];"
+      },
+      "id": "prepare-report",
+      "name": "Preparar Relatorio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 340]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_EDITOR_CHAT_ID }}",
+        "text": "={{ $json.mensagem }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_markup": {
+            "inline_keyboard": [
+              [
+                {
+                  "text": "📊 Abrir Planilha",
+                  "url": "https://docs.google.com/spreadsheets/d/{{ $env.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "id": "telegram-report",
+      "name": "Notificar Editor (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1540, 340],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agenda Semanal (Segunda 7h)": {
+      "main": [
+        [
+          {
+            "node": "Selecionar Territorio da Semana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar Territorio da Semana": {
+      "main": [
+        [
+          {
+            "node": "LLM Gerar Pautas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Gerar Pautas": {
+      "main": [
+        [
+          {
+            "node": "Processar Pautas Geradas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Pautas Geradas": {
+      "main": [
+        [
+          {
+            "node": "Adicionar Pautas na Planilha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adicionar Pautas na Planilha": {
+      "main": [
+        [
+          {
+            "node": "Preparar Relatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Relatorio": {
+      "main": [
+        [
+          {
+            "node": "Notificar Editor (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Sao_Paulo"
+  },
+  "tags": [
+    {
+      "name": "auto-pesquisa"
+    },
+    {
+      "name": "jornal-espaco-do-povo"
+    }
+  ]
+}

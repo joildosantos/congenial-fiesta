@@ -1,0 +1,192 @@
+{
+  "name": "Gerar Imagem Social (Sub-workflow)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gerar-imagem-social",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-entrada",
+      "name": "Receber Dados do Post",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 340],
+      "notes": "Recebe: titulo, editoria, imagem_fundo_url (opcional), cor_editoria (opcional)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst titulo = data.titulo || 'Titulo da Materia';\nconst editoria = (data.editoria || 'Noticias').toUpperCase();\nconst autorNome = data.autor || 'Redacao';\nconst imagemFundo = data.imagem_fundo_url || '';\nconst dataPublicacao = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });\n\n// Cores por editoria\nconst coresEditoria = {\n  'SAUDE': '#2ecc71',\n  'EDUCACAO': '#3498db',\n  'TRANSPORTE': '#e67e22',\n  'CULTURA': '#9b59b6',\n  'ESPORTE': '#e74c3c',\n  'HISTORIA': '#f39c12',\n  'SERVICOS': '#1abc9c',\n  'GASTRONOMIA': '#e74c3c',\n  'EVENTOS': '#8e44ad',\n  'MEIO-AMBIENTE': '#27ae60',\n  'EMPREENDEDORISMO': '#2c3e50',\n  'NOTICIAS': '#c0392b',\n  'CURIOSIDADE': '#f1c40f'\n};\n\nconst corEditoria = data.cor_editoria || coresEditoria[editoria] || '#c0392b';\n\n// Quebra titulo em linhas para caber no card\nconst maxCharsPerLine = 28;\nconst words = titulo.split(' ');\nlet lines = [];\nlet currentLine = '';\nfor (const word of words) {\n  if ((currentLine + ' ' + word).trim().length > maxCharsPerLine) {\n    if (currentLine) lines.push(currentLine.trim());\n    currentLine = word;\n  } else {\n    currentLine = (currentLine + ' ' + word).trim();\n  }\n}\nif (currentLine) lines.push(currentLine.trim());\n\n// Limita a 4 linhas\nif (lines.length > 4) {\n  lines = lines.slice(0, 4);\n  lines[3] = lines[3].substring(0, maxCharsPerLine - 3) + '...';\n}\n\n// Calcula tamanho da fonte baseado no numero de linhas\nconst fontSize = lines.length <= 2 ? 48 : lines.length <= 3 ? 40 : 34;\n\nreturn [{\n  json: {\n    titulo,\n    editoria,\n    corEditoria,\n    autorNome,\n    dataPublicacao,\n    imagemFundo,\n    tituloLinhas: lines,\n    fontSize\n  }\n}];"
+      },
+      "id": "preparar-dados",
+      "name": "Preparar Dados do Card",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\n\n// Gera o HTML do card social 1200x630 (padrao Open Graph)\nconst html = `<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<style>\n  * { margin: 0; padding: 0; box-sizing: border-box; }\n  body {\n    width: 1200px;\n    height: 630px;\n    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;\n    overflow: hidden;\n  }\n  .card {\n    width: 1200px;\n    height: 630px;\n    position: relative;\n    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n    padding: 0;\n  }\n  ${d.imagemFundo ? `.card::before {\n    content: '';\n    position: absolute;\n    top: 0; left: 0; right: 0; bottom: 0;\n    background: url('${d.imagemFundo}') center/cover;\n    opacity: 0.25;\n    z-index: 0;\n  }` : ''}\n  .card > * { position: relative; z-index: 1; }\n  .top-bar {\n    display: flex;\n    justify-content: space-between;\n    align-items: center;\n    padding: 28px 40px;\n  }\n  .logo-area {\n    display: flex;\n    align-items: center;\n    gap: 16px;\n  }\n  .logo-icon {\n    width: 56px;\n    height: 56px;\n    background: #c0392b;\n    border-radius: 12px;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    font-size: 28px;\n    font-weight: 900;\n    color: white;\n    letter-spacing: -2px;\n  }\n  .logo-text {\n    color: white;\n    font-size: 22px;\n    font-weight: 700;\n    line-height: 1.1;\n  }\n  .logo-text span {\n    display: block;\n    font-size: 13px;\n    font-weight: 400;\n    opacity: 0.7;\n    letter-spacing: 2px;\n    text-transform: uppercase;\n  }\n  .editoria-badge {\n    background: ${d.corEditoria};\n    color: white;\n    padding: 8px 24px;\n    border-radius: 6px;\n    font-size: 14px;\n    font-weight: 700;\n    letter-spacing: 3px;\n    text-transform: uppercase;\n  }\n  .content {\n    flex: 1;\n    display: flex;\n    flex-direction: column;\n    justify-content: center;\n    padding: 0 60px;\n  }\n  .titulo {\n    color: white;\n    font-size: ${d.fontSize}px;\n    font-weight: 800;\n    line-height: 1.25;\n    text-shadow: 0 2px 20px rgba(0,0,0,0.5);\n    max-width: 900px;\n  }\n  .accent-line {\n    width: 80px;\n    height: 5px;\n    background: ${d.corEditoria};\n    border-radius: 3px;\n    margin-top: 24px;\n  }\n  .bottom-bar {\n    display: flex;\n    justify-content: space-between;\n    align-items: center;\n    padding: 24px 40px;\n    background: rgba(0,0,0,0.3);\n    border-top: 1px solid rgba(255,255,255,0.1);\n  }\n  .autor {\n    color: rgba(255,255,255,0.8);\n    font-size: 16px;\n  }\n  .autor strong { color: white; }\n  .data {\n    color: rgba(255,255,255,0.6);\n    font-size: 14px;\n    letter-spacing: 1px;\n  }\n  .site {\n    color: ${d.corEditoria};\n    font-size: 15px;\n    font-weight: 600;\n  }\n</style>\n</head>\n<body>\n<div class=\"card\">\n  <div class=\"top-bar\">\n    <div class=\"logo-area\">\n      <div class=\"logo-icon\">EP</div>\n      <div class=\"logo-text\">\n        Espaco do Povo\n        <span>Jornal Comunitario</span>\n      </div>\n    </div>\n    <div class=\"editoria-badge\">${d.editoria}</div>\n  </div>\n  <div class=\"content\">\n    <div class=\"titulo\">${d.tituloLinhas.join('<br>')}</div>\n    <div class=\"accent-line\"></div>\n  </div>\n  <div class=\"bottom-bar\">\n    <div class=\"autor\">Por <strong>${d.autorNome}</strong></div>\n    <div class=\"data\">${d.dataPublicacao}</div>\n    <div class=\"site\">jornalespacodopovo.com.br</div>\n  </div>\n</div>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    html,\n    ...d\n  }\n}];"
+      },
+      "id": "gerar-html-card",
+      "name": "Gerar HTML do Card",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 340],
+      "notes": "Gera HTML de card 1200x630 (padrao Open Graph) com logo, editoria, titulo e cores personalizadas."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hcti.io/v1/image",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"html\": {{ JSON.stringify($json.html) }},\n  \"css\": \"\",\n  \"google_fonts\": \"Inter\",\n  \"selector\": \".card\",\n  \"ms_delay\": 500,\n  \"device_scale\": 2,\n  \"viewport_width\": 1200,\n  \"viewport_height\": 630\n}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "html-to-image-api",
+      "name": "HTML to Image (hcti.io)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 240],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "hcti-cred",
+          "name": "HCTI API"
+        }
+      },
+      "notes": "Servico hcti.io - Plano gratuito: 50 imagens/mes. Alternativa gratuita ilimitada: usar o node abaixo com Puppeteer self-hosted."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCREENSHOT_API_URL || 'http://browserless:3000' }}/screenshot",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"html\": {{ JSON.stringify($json.html) }},\n  \"options\": {\n    \"type\": \"png\",\n    \"fullPage\": false,\n    \"clip\": {\n      \"x\": 0,\n      \"y\": 0,\n      \"width\": 1200,\n      \"height\": 630\n    }\n  },\n  \"viewport\": {\n    \"width\": 1200,\n    \"height\": 630,\n    \"deviceScaleFactor\": 2\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "browserless-screenshot",
+      "name": "Screenshot (Browserless - Self-hosted)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 460],
+      "notes": "Alternativa 100% gratuita: usa Browserless (Docker) para renderizar HTML em imagem. Adicione ao docker-compose: browserless/chrome:latest na porta 3000."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ url: $json.url, image_data: $json.data }) }}"
+      },
+      "id": "respond-webhook",
+      "name": "Retornar Imagem",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 340]
+    }
+  ],
+  "connections": {
+    "Receber Dados do Post": {
+      "main": [
+        [
+          {
+            "node": "Preparar Dados do Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Dados do Card": {
+      "main": [
+        [
+          {
+            "node": "Gerar HTML do Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar HTML do Card": {
+      "main": [
+        [
+          {
+            "node": "HTML to Image (hcti.io)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Screenshot (Browserless - Self-hosted)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML to Image (hcti.io)": {
+      "main": [
+        [
+          {
+            "node": "Retornar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screenshot (Browserless - Self-hosted)": {
+      "main": [
+        [
+          {
+            "node": "Retornar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Sao_Paulo"
+  },
+  "tags": [
+    {
+      "name": "imagem"
+    },
+    {
+      "name": "jornal-espaco-do-povo"
+    }
+  ]
+}

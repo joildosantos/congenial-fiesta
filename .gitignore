@@ -1,0 +1,5 @@
+.env
+*.key
+*.pem
+*.json.bak
+node_modules/
