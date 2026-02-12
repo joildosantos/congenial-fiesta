@@ -6,7 +6,7 @@ Prompts utilizados nos workflows para reescrita e classificacao de conteudo via 
 
 ## Prompt: Reescrita de Conteudo Frio
 
-**Modelo:** `meta-llama/llama-3.1-8b-instruct:free`
+**Modelo:** `google/gemma-3-27b-it:free`
 **Temperatura:** 0.7
 **Max tokens:** 1500
 
@@ -38,7 +38,7 @@ Notas/Informacoes: {notas}
 
 ## Prompt: Classificacao de Relevancia (Conteudo Diario)
 
-**Modelo:** `meta-llama/llama-3.1-8b-instruct:free`
+**Modelo:** `google/gemma-3-27b-it:free`
 **Temperatura:** 0.3
 **Max tokens:** 200
 
@@ -61,7 +61,7 @@ Resumo: {descricao_ate_500_chars}
 
 ## Prompt: Reescrita de Conteudo Diario
 
-**Modelo:** `meta-llama/llama-3.1-8b-instruct:free`
+**Modelo:** `google/gemma-3-27b-it:free`
 **Temperatura:** 0.7
 **Max tokens:** 1500
 
@@ -100,6 +100,6 @@ Categoria sugerida: {categoria_sugerida}
 3. **Categorias:** Adicione categorias especificas do WordPress no prompt para que o LLM sugira as corretas
 4. **Hashtags:** Adicione instrucao para gerar hashtags se necessario para redes sociais
 5. **Modelo alternativo:** Se o Llama 3.1 8B nao atender, tente:
-   - `google/gemma-2-9b-it:free`
-   - `mistralai/mistral-7b-instruct:free`
-   - `qwen/qwen-2-7b-instruct:free`
+   - `deepseek/deepseek-chat-v3-0324:free`
+   - `qwen/qwq-32b:free`
+   - `mistralai/mistral-small-3.1-24b-instruct:free`
