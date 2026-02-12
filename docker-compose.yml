@@ -42,6 +42,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-n8n}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-evolution-db.sh:/docker-entrypoint-initdb.d/init-evolution-db.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-n8n} -d ${POSTGRES_DB:-n8n}"]
       interval: 5s
@@ -62,19 +63,22 @@ services:
       - SERVER_URL=${EVOLUTION_SERVER_URL:-http://localhost:8080}
       - DEL_INSTANCE=false
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_ENABLED=false
-      - DATABASE_SAVE_DATA_INSTANCE=false
+      - DATABASE_ENABLED=true
+      - DATABASE_SAVE_DATA_INSTANCE=true
       - DATABASE_SAVE_DATA_NEW_MESSAGE=false
       - DATABASE_SAVE_MESSAGE_UPDATE=false
       - DATABASE_SAVE_DATA_CONTACTS=false
       - DATABASE_SAVE_DATA_CHATS=false
       - DATABASE_SAVE_DATA_LABELS=false
       - DATABASE_SAVE_DATA_HISTORIC=false
-      - DATABASE_CONNECTION_URI=
+      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER:-n8n}:${POSTGRES_PASSWORD:-n8n}@postgres:5432/evolution?schema=public
       - RABBITMQ_ENABLED=false
       - WEBSOCKET_ENABLED=false
     volumes:
       - evolution_data:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - jornal-network
 
