@@ -1,0 +1,763 @@
+<?php
+class ANRP_Scraper {
+    
+    public function extract_content($url) {
+        error_log('ANRP Scraper: Iniciando extração de ' . $url);
+        
+        $response = wp_remote_get($url, [
+            'timeout' => 30,
+            'headers' => [
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language' => 'pt-BR,pt;q=0.9,en;q=0.8'
+            ]
+        ]);
+        
+        if (is_wp_error($response)) {
+            error_log('ANRP Scraper Error: ' . $response->get_error_message());
+            throw new Exception('Falha ao acessar URL: ' . $response->get_error_message());
+        }
+        
+        $html = wp_remote_retrieve_body($response);
+        error_log('ANRP Scraper: HTML recebido - ' . strlen($html) . ' bytes');
+        
+        if (empty($html) || strlen($html) < 500) {
+            throw new Exception('Página retornou conteúdo vazio ou muito curto');
+        }
+        
+        // Limpar HTML ANTES de parsear - remover sidebars, footers, etc
+        $html = $this->pre_clean_html($html);
+        
+        // Usar DOMDocument para parsear
+        $dom = new DOMDocument();
+        libxml_use_internal_errors(true);
+        @$dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+        libxml_clear_errors();
+
+        // Remover elementos indesejados do DOM
+        $this->remove_unwanted_elements($dom);
+        
+        // Extrair título
+        $title = $this->extract_title($dom);
+        error_log('ANRP Scraper: Título extraído - ' . mb_substr($title, 0, 80));
+        
+        // Extrair conteúdo LIMPO
+        $content = $this->extract_article_content($dom);
+        error_log('ANRP Scraper: Conteúdo extraído - ' . strlen($content) . ' chars');
+        
+        // Extrair meta informações
+        $meta = $this->extract_meta($dom);
+        
+        // Extrair imagem principal
+        $image_info = $this->extract_main_image($dom);
+        
+        return [
+            'title' => $title,
+            'content' => $content,
+            'meta' => $meta,
+            'main_image' => $image_info['url'] ?? null,
+            'main_image_caption' => $image_info['caption'] ?? '',
+            'main_image_credit' => $image_info['credit'] ?? '',
+            'url' => $url
+        ];
+    }
+    
+    /**
+     * Pré-limpa o HTML removendo blocos problemáticos via regex
+     */
+    private function pre_clean_html($html) {
+        // Remover comentários HTML
+        $html = preg_replace('/<!--.*?-->/s', '', $html);
+        
+        // Remover scripts e styles
+        $html = preg_replace('/<script[^>]*>.*?<\/script>/si', '', $html);
+        $html = preg_replace('/<style[^>]*>.*?<\/style>/si', '', $html);
+        
+        // Remover elementos por classe/id comuns de sidebar
+        $patterns = [
+            '/<aside[^>]*>.*?<\/aside>/si',
+            '/<nav[^>]*>.*?<\/nav>/si',
+            '/<footer[^>]*>.*?<\/footer>/si',
+            '/<header[^>]*class="[^"]*site-header[^"]*"[^>]*>.*?<\/header>/si',
+            '/<div[^>]*class="[^"]*sidebar[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*class="[^"]*widget[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*class="[^"]*related[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*class="[^"]*comment[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*class="[^"]*share[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*class="[^"]*social[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*class="[^"]*newsletter[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*class="[^"]*anunciar[^"]*"[^>]*>.*?<\/div>/si',
+            '/<div[^>]*id="[^"]*sidebar[^"]*"[^>]*>.*?<\/div>/si',
+        ];
+        
+        foreach ($patterns as $pattern) {
+            $html = preg_replace($pattern, '', $html);
+        }
+        
+        return $html;
+    }
+    
+    /**
+     * Remove elementos indesejados do DOM
+     */
+    private function remove_unwanted_elements($dom) {
+        $xpath = new DOMXPath($dom);
+        
+        // Tags a remover completamente
+        $tags_to_remove = ['script', 'style', 'noscript', 'iframe', 'svg', 'nav', 'aside', 'footer'];
+        foreach ($tags_to_remove as $tag) {
+            $nodes = $dom->getElementsByTagName($tag);
+            while ($nodes->length > 0) {
+                $nodes->item(0)->parentNode->removeChild($nodes->item(0));
+            }
+        }
+        
+        // Classes a remover
+        $classes_to_remove = [
+            'sidebar', 'widget', 'related', 'comment', 'share', 'social', 
+            'newsletter', 'ad', 'advertisement', 'promo', 'banner',
+            'author-box', 'post-tags', 'breadcrumb', 'pagination',
+            'visibilidade', 'anunciar', 'midia-kit', 'quero-anunciar'
+        ];
+        
+        foreach ($classes_to_remove as $class) {
+            $nodes = $xpath->query("//*[contains(@class, '{$class}')]");
+            foreach ($nodes as $node) {
+                if ($node->parentNode) {
+                    $node->parentNode->removeChild($node);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Extrai conteúdo do artigo de forma limpa
+     */
+    private function extract_article_content($dom) {
+        $xpath = new DOMXPath($dom);
+        $content = '';
+        
+        // Seletores de conteúdo principal (em ordem de prioridade)
+        $selectors = [
+            '//article//p',
+            '//*[@itemprop="articleBody"]//p',
+            '//*[contains(@class, "entry-content")]//p',
+            '//*[contains(@class, "post-content")]//p',
+            '//*[contains(@class, "article-content")]//p',
+            '//*[contains(@class, "article-body")]//p',
+            '//*[contains(@class, "content-area")]//p',
+            '//*[contains(@class, "single-content")]//p',
+            '//main//p',
+        ];
+        
+        foreach ($selectors as $selector) {
+            $paragraphs = $xpath->query($selector);
+            
+            if ($paragraphs->length > 0) {
+                $extracted = [];
+                
+                foreach ($paragraphs as $p) {
+                    $text = trim($p->textContent);
+                    
+                    // Ignorar parágrafos muito curtos
+                    if (mb_strlen($text) < 50) continue;
+                    
+                    // Ignorar se for boilerplate
+                    if ($this->is_boilerplate($text)) continue;
+                    
+                    // Ignorar se for crédito de foto
+                    if ($this->is_photo_credit($text)) continue;
+                    
+                    // Ignorar se tiver muitos pipes ou separadores (menu)
+                    if (substr_count($text, '|') > 2) continue;
+                    if (substr_count($text, '•') > 2) continue;
+                    
+                    // Limpar texto
+                    $text = $this->clean_text($text);
+                    
+                    if (!empty($text) && !in_array($text, $extracted)) {
+                        $extracted[] = $text;
+                    }
+                }
+                
+                if (count($extracted) >= 2) {
+                    $content = implode("\n\n", $extracted);
+                    error_log('ANRP Scraper: Conteúdo via ' . $selector . ' - ' . count($extracted) . ' parágrafos');
+                    break;
+                }
+            }
+        }
+        
+        // Se não encontrou conteúdo suficiente, usar og:description
+        if (mb_strlen($content) < 200) {
+            $og_desc = $xpath->query('//meta[@property="og:description"]/@content');
+            if ($og_desc->length > 0) {
+                $desc = trim($og_desc->item(0)->nodeValue);
+                if (mb_strlen($desc) > 100) {
+                    $content = $desc;
+                }
+            }
+        }
+        
+        return $content;
+    }
+    
+    /**
+     * Verifica se é crédito de foto
+     */
+    private function is_photo_credit($text) {
+        $patterns = [
+            '/^(foto|imagem|crédito|reprodução|divulgação)[\s:]/i',
+            '/(foto|crédito|reprodução|divulgação)\s*[:\/]\s*\w+/i',
+            '/\/(instagram|twitter|facebook|redes sociais)/i',
+            '/wikimedia|wikipedia|arquivo/i',
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $text)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Limpa texto extraído
+     */
+    private function clean_text($text) {
+        // Remover múltiplos espaços
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        // Remover créditos inline
+        $text = preg_replace('/\s*[\(\[]?(foto|crédito|reprodução|divulgação)[^\)\]]*[\)\]]?\s*/i', ' ', $text);
+        
+        // Remover "Leia também", "Veja também", etc
+        $text = preg_replace('/\s*(leia|veja|saiba)\s+(também|mais)[:\s]*.*/i', '', $text);
+        
+        return trim($text);
+    }
+    
+    private function extract_title($dom) {
+        $title = '';
+        $xpath = new DOMXPath($dom);
+        
+        // 1. Primeiro tentar Open Graph title (mais limpo)
+        $og_title = $xpath->query('//meta[@property="og:title"]/@content');
+        if ($og_title->length > 0) {
+            $title = trim($og_title->item(0)->nodeValue);
+        }
+        
+        // 2. Tentar h1 (geralmente o título principal)
+        if (empty($title)) {
+            $h1s = $dom->getElementsByTagName('h1');
+            if ($h1s->length > 0) {
+                $title = trim($h1s->item(0)->textContent);
+            }
+        }
+        
+        // 3. Tentar seletores específicos de CMS
+        if (empty($title)) {
+            $selectors = [
+                '//*[contains(@class, "entry-title")]',
+                '//*[contains(@class, "post-title")]',
+                '//*[contains(@class, "article-title")]',
+                '//*[contains(@class, "titulo")]',
+                '//*[contains(@class, "headline")]',
+            ];
+            
+            foreach ($selectors as $selector) {
+                $nodes = $xpath->query($selector);
+                if ($nodes->length > 0) {
+                    $text = trim($nodes->item(0)->textContent);
+                    if (!empty($text) && strlen($text) > 10 && strlen($text) < 300) {
+                        $title = $text;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 4. Último recurso: tag title (mas limpar)
+        if (empty($title)) {
+            $titleTag = $dom->getElementsByTagName('title');
+            if ($titleTag->length > 0) {
+                $title = trim($titleTag->item(0)->textContent);
+            }
+        }
+        
+        // Limpar título: remover nome do site comum
+        $title = $this->clean_title($title);
+        
+        return trim($title);
+    }
+    
+    /**
+     * Limpa o título removendo nome do veículo e separadores
+     */
+    private function clean_title($title) {
+        if (empty($title)) return '';
+        
+        // Padrões comuns de separação: " - Site", " | Site", " – Site", " :: Site"
+        $separators = [' - ', ' | ', ' – ', ' :: ', ' — ', ' · '];
+        
+        foreach ($separators as $sep) {
+            if (strpos($title, $sep) !== false) {
+                $parts = explode($sep, $title);
+                // O título geralmente é a primeira parte (mais longa)
+                // Se a última parte parecer nome de site (curta), remove
+                if (count($parts) >= 2) {
+                    $last = trim(end($parts));
+                    $first = trim($parts[0]);
+                    
+                    // Se última parte for curta (< 30 chars) e primeira for razoável
+                    if (strlen($last) < 30 && strlen($first) > 20) {
+                        $title = $first;
+                    }
+                    // Se primeira parte for curta e última longa, pode ser "Site - Título"
+                    elseif (strlen($first) < 30 && strlen($last) > 20) {
+                        $title = $last;
+                    }
+                }
+                break;
+            }
+        }
+        
+        return trim($title);
+    }
+    
+    private function extract_main_content($dom, $raw_html = '') {
+        $xpath = new DOMXPath($dom);
+        
+        // 1. Tentar extrair usando Open Graph description como fallback
+        $og_desc = '';
+        $og_nodes = $xpath->query('//meta[@property="og:description"]/@content');
+        if ($og_nodes->length > 0) {
+            $og_desc = trim($og_nodes->item(0)->nodeValue);
+        }
+        
+        // 2. Tentar seletores específicos de conteúdo primeiro
+        $content_selectors = [
+            '//article//p',
+            '//*[contains(@class, "entry-content")]//p',
+            '//*[contains(@class, "post-content")]//p',
+            '//*[contains(@class, "article-content")]//p',
+            '//*[contains(@class, "article-body")]//p',
+            '//*[contains(@class, "content")]//p',
+            '//*[contains(@class, "texto")]//p',
+            '//*[contains(@class, "noticia")]//p',
+            '//*[contains(@itemprop, "articleBody")]//p',
+        ];
+        
+        $content = '';
+        foreach ($content_selectors as $selector) {
+            $nodes = $xpath->query($selector);
+            if ($nodes->length > 0) {
+                foreach ($nodes as $node) {
+                    $text = trim($node->textContent);
+                    if (strlen($text) > 40 && !$this->is_boilerplate($text)) {
+                        $content .= $this->clean_content($text) . "\n\n";
+                    }
+                }
+                if (strlen($content) > 200) {
+                    error_log('ANRP Scraper: Conteúdo encontrado via ' . $selector);
+                    break;
+                }
+            }
+        }
+        
+        // 3. Se ainda vazio, tentar algoritmo Readability
+        if (strlen($content) < 200) {
+            $readability = $this->extract_main_content_readability($dom);
+            if (!empty($readability) && strlen($readability) > 100) {
+                $content = $readability;
+            }
+        }
+
+        // 4. Fallback: buscar todos os parágrafos
+        if (strlen($content) < 200) {
+            $paragraphs = $dom->getElementsByTagName('p');
+            foreach ($paragraphs as $p) {
+                $text = trim($p->textContent);
+                if (strlen($text) > 50 && !$this->is_boilerplate($text)) {
+                    $content .= $this->clean_content($text) . "\n\n";
+                }
+            }
+        }
+
+        // 5. Se ainda vazio, tentar divs com texto longo
+        if (strlen($content) < 200) {
+            $divs = $xpath->query('//div[string-length(normalize-space(.)) > 200]');
+            foreach ($divs as $div) {
+                $class = strtolower($div->getAttribute('class') . ' ' . $div->getAttribute('id'));
+                if (preg_match('/(sidebar|footer|header|nav|menu|comment|widget|ad|promo|related)/i', $class)) {
+                    continue;
+                }
+                
+                $text = trim($div->textContent);
+                if (strlen($text) > 200 && strlen($text) < 10000) {
+                    $content .= $this->clean_content($text) . "\n\n";
+                    break;
+                }
+            }
+        }
+
+        // 6. Último fallback: usar og:description
+        if (strlen($content) < 100 && !empty($og_desc)) {
+            $content = $og_desc;
+        }
+
+        // Limitar tamanho
+        $content = mb_substr($content, 0, 10000);
+
+        return trim($content);
+    }
+    
+    /**
+     * Verifica se o texto parece ser boilerplate (cookies, termos, etc)
+     */
+    private function is_boilerplate($text) {
+        $boilerplate_patterns = [
+            '/cookie/i',
+            '/privacy policy/i',
+            '/política de privacidade/i',
+            '/termos de uso/i',
+            '/terms of service/i',
+            '/aceitar todos/i',
+            '/accept all/i',
+            '/newsletter/i',
+            '/inscreva-se/i',
+            '/subscribe/i',
+            '/compartilhe/i',
+            '/leia também/i',
+            '/veja mais/i',
+            '/publicidade/i',
+        ];
+        
+        foreach ($boilerplate_patterns as $pattern) {
+            if (preg_match($pattern, $text)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    private function extract_main_content_readability($dom) {
+        $xpath = new DOMXPath($dom);
+
+        // Remover inicialmente nodes com alta densidade de links
+        $this->remove_high_link_density_nodes($dom, 0.5);
+
+        // Possíveis seletores candidatos
+        $candidates = [
+            '//article',
+            '//*[contains(@class, "entry-content")]',
+            '//*[contains(@class, "post-content")]',
+            '//*[contains(@class, "article-content")]',
+            '//*[contains(@class, "content")]',
+            '//*[contains(@class, "conteudo")]',
+            '//main',
+            '//*[contains(@class, "story-content")]',
+            '//*[contains(@class, "noticia-conteudo")]',
+            '//*[contains(@id, "content")]',
+        ];
+
+        $bestNode = null;
+        $bestScore = 0;
+
+        $negative_keywords = ['comment', 'meta', 'footer', 'sidebar', 'nav', 'advert', 'ads', 'promo', 'related'];
+
+        foreach ($candidates as $query) {
+            $nodes = $xpath->query($query);
+            if ($nodes->length === 0) continue;
+
+            foreach ($nodes as $node) {
+                $score = 0;
+
+                // Penalizar nodes com classes/ids negativas
+                $class = $node->getAttribute('class');
+                $id = $node->getAttribute('id');
+                $hay = strtolower($class . ' ' . $id);
+                foreach ($negative_keywords as $kw) {
+                    if (strpos($hay, $kw) !== false) {
+                        $score -= 50;
+                    }
+                }
+
+                // Contar parágrafos relevantes
+                $ps = $node->getElementsByTagName('p');
+                $pCount = 0;
+                foreach ($ps as $p) {
+                    $t = trim($p->textContent);
+                    if (strlen($t) > 50) {
+                        $pCount++;
+                        $score += min(30, strlen($t) / 10);
+                    }
+                }
+
+                // Penalizar nodes com alta densidade de links
+                $linkDensity = $this->calculate_link_density($node);
+                if ($linkDensity > 0.5) {
+                    $score -= 100; // forte penalidade para evitar menus/sidebars
+                }
+
+                // Imagens e vídeos ajudam a pontuar
+                $imgs = $node->getElementsByTagName('img');
+                $score += $imgs->length * 5;
+
+                // Brevidade do node (muito curto penaliza)
+                if ($pCount === 0) {
+                    $score -= 20;
+                }
+
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $bestNode = $node;
+                }
+            }
+        }
+
+        if ($bestNode && $bestScore > 0) {
+            $output = '';
+            $ps = $bestNode->getElementsByTagName('p');
+            foreach ($ps as $p) {
+                $text = trim($p->textContent);
+                if (strlen($text) > 30) {
+                    $output .= $this->clean_content($text) . "\n\n";
+                }
+            }
+
+            // Se não obteve parágrafos suficientes, tentar pegar texto direto do node
+            if (empty(trim($output))) {
+                $text = trim($bestNode->textContent);
+                $output = $this->clean_content($text);
+            }
+
+            return trim(substr($output, 0, 10000));
+        }
+
+        return '';
+    }
+
+    private function calculate_link_density($node) {
+        $text = trim($node->textContent);
+        if (empty($text)) return 0.0;
+
+        $xpath = new DOMXPath($node->ownerDocument);
+        $aNodes = $xpath->query('.//a', $node);
+        $linkTextLen = 0;
+        foreach ($aNodes as $a) {
+            $linkTextLen += strlen(trim($a->textContent));
+        }
+
+        $totalLen = strlen($text);
+        if ($totalLen === 0) return 0.0;
+
+        return $linkTextLen / $totalLen;
+    }
+
+    private function remove_high_link_density_nodes($dom, $threshold = 0.5) {
+        $xpath = new DOMXPath($dom);
+        // Selecionar containers comuns
+        $queries = [
+            '//nav', '//aside', '//*[contains(@class, "sidebar")]', '//*[contains(@class, "related")]', '//ul', '//ol', '//*[contains(@class, "menu")]'
+        ];
+
+        $toRemove = [];
+        foreach ($queries as $q) {
+            $nodes = $xpath->query($q);
+            if ($nodes->length === 0) continue;
+            foreach ($nodes as $node) {
+                $density = $this->calculate_link_density($node);
+                // remover listas com muitos itens linkados ou alta densidade
+                $liCount = $node->getElementsByTagName('li')->length;
+                $aCount = $node->getElementsByTagName('a')->length;
+
+                if ($density > $threshold || ($liCount > 3 && $aCount / max(1, $liCount) > 0.7)) {
+                    $toRemove[] = $node;
+                }
+            }
+        }
+
+        // Remover nós identificados (em ordem segura)
+        foreach ($toRemove as $n) {
+            if ($n->parentNode) {
+                $n->parentNode->removeChild($n);
+            }
+        }
+    }
+    
+    private function extract_meta($dom) {
+        $meta = [];
+        $metas = $dom->getElementsByTagName('meta');
+        
+        foreach ($metas as $tag) {
+            $name = $tag->getAttribute('name') ?: $tag->getAttribute('property');
+            $content = $tag->getAttribute('content');
+            
+            if ($name && $content) {
+                $meta[strtolower($name)] = $content;
+            }
+        }
+        
+        return $meta;
+    }
+    
+    private function extract_main_image($dom) {
+        $xpath = new DOMXPath($dom);
+        $result = ['url' => null, 'caption' => '', 'credit' => ''];
+        
+        // Estratégia: Procurar imagem dentro do artigo com legenda primeiro
+        $body_selectors = [
+            '//figure[contains(@class, "wp-block-image")]',
+            '//figure',
+            '//div[contains(@class, "image-container")]',
+            '//div[contains(@class, "wp-caption")]',
+            '//article//img',
+            '//.content//img'
+        ];
+        
+        foreach ($body_selectors as $query) {
+            $nodes = $xpath->query($query);
+            if ($nodes->length > 0) {
+                // Iterar para encontrar a melhor candidata (maior tamanho ou primeira)
+                // Simplificação: pegar a primeira que parece ser conteúdo principal
+                $node = $nodes->item(0);
+                
+                // Se for um figure/container, procurar img dentro
+                if ($node->nodeName !== 'img') {
+                    $imgs = $node->getElementsByTagName('img');
+                    if ($imgs->length > 0) {
+                        $imgNode = $imgs->item(0);
+                        // Tentar extrair legenda do container
+                        $captions = $xpath->query('.//figcaption | .//*[contains(@class, "caption")] | .//*[contains(@class, "legenda")]', $node);
+                        if ($captions->length > 0) {
+                            $result['caption'] = trim($captions->item(0)->textContent);
+                        }
+                        
+                        // Tentar extrair crédito
+                        $credits = $xpath->query('.//*[contains(@class, "credit")] | .//*[contains(@class, "source")] | .//*[contains(@class, "credito")] | .//*[contains(@class, "author")]', $node);
+                        if ($credits->length > 0) {
+                            $result['credit'] = trim($credits->item(0)->textContent);
+                        }
+                        
+                        $result['url'] = $imgNode->getAttribute('src') ?: $imgNode->getAttribute('data-src');
+                    }
+                } else {
+                    // É um nó IMG direto
+                    $result['url'] = $node->getAttribute('src') ?: $node->getAttribute('data-src');
+                    $result['caption'] = $node->getAttribute('alt'); // Fallback ruim, mas válido
+                    
+                    // Tentar achar legenda no irmão próximo (sibling)
+                    $next = $node->nextSibling;
+                    while ($next && $next->nodeType !== XML_ELEMENT_NODE) {
+                        $next = $next->nextSibling;
+                    }
+                    if ($next && (strpos($next->getAttribute('class'), 'caption') !== false || $next->nodeName === 'figcaption')) {
+                        $result['caption'] = trim($next->textContent);
+                    }
+                }
+                
+                if (!empty($result['url'])) {
+                     break;
+                }
+            }
+        }
+        
+        // Se falhar no corpo, tentar meta tags (sem legenda)
+        if (empty($result['url'])) {
+            $meta_selectors = [
+                '//meta[@property="og:image"]',
+                '//meta[@name="twitter:image"]'
+            ];
+            foreach ($meta_selectors as $sel) {
+                $nodes = $xpath->query($sel);
+                if ($nodes->length > 0) {
+                    $result['url'] = $nodes->item(0)->getAttribute('content');
+                    break;
+                }
+            }
+        }
+        
+        // Normalizar URL
+        if (!empty($result['url'])) {
+            $url = $result['url'];
+            if (strpos($url, 'http') !== 0) {
+                $base_url = $this->get_base_url($dom);
+                // Se base_url vazio, tentar usar a URL de origem se soubéssemos, aqui não temos acesso direto à $url original infelizmente 
+                // Assumindo que o chamador passou, mas aqui é difícil.
+                // Correção: o método extract_content não passa a URL base para este método.
+                // Vamos supor que funcione para a maioria dos casos ou o base tag exista.
+                $url = rtrim($base_url, '/') . '/' . ltrim($url, '/');
+                $result['url'] = $url;
+            }
+        } else {
+            return null; // Retorna null para manter compatibilidade com check `empty`
+        }
+        
+        return $result;
+    }
+    
+    private function get_base_url($dom) {
+        $xpath = new DOMXPath($dom);
+        $base = $xpath->query('//base/@href');
+        
+        if ($base->length > 0) {
+            return $base->item(0)->nodeValue;
+        }
+        
+        return '';
+    }
+    
+    private function clean_content($text) {
+        $text = preg_replace('/\s+/', ' ', $text);
+        $text = preg_replace('/\t+/', ' ', $text);
+        $text = preg_replace('/\n+/', "\n", $text);
+        $text = trim($text);
+        
+        // Remover textos comuns indesejados
+        $patterns = [
+            '/Leia também.*$/i',
+            '/Compartilhe.*$/i',
+            '/Comentários.*$/i',
+            '/Continue lendo.*$/i'
+        ];
+        
+        foreach ($patterns as $pattern) {
+            $text = preg_replace($pattern, '', $text);
+        }
+
+        // Remover boilerplate comum (rodapés e avisos de site)
+        $boilerplate = [
+            '/O autor da mensagem.*$/is',
+            '/Leia as Regras de Uso.*$/is',
+            '/Ver original.*$/is',
+            '/Leia textos e assista a vídeos.*$/is',
+            '/Continua após a publicidade.*$/is',
+            '/Leia também.*$/is'
+        ];
+
+        foreach ($boilerplate as $bp) {
+            $text = preg_replace($bp, '', $text);
+        }
+
+        // Remover trechos de scripts inline que às vezes aparecem como texto (ex: pushAds snippets)
+        $text = preg_replace('/\(function\([\s\S]*?\)\([\s\S]*?\)\)/', '', $text);
+        $text = preg_replace('/\bpushAds\b/i', '', $text);
+        
+        return $text;
+    }
+
+    private function remove_unwanted_nodes($dom, $tags = []) {
+        $xpath = new DOMXPath($dom);
+        foreach ($tags as $tag) {
+            $nodes = $xpath->query('//' . $tag);
+            if ($nodes->length > 0) {
+                foreach ($nodes as $node) {
+                    $node->parentNode->removeChild($node);
+                }
+            }
+        }
+    }
+}
