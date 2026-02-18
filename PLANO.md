@@ -38,7 +38,7 @@ Sistema de automacao editorial baseado em **n8n** (self-hosted) para geracao, ap
 |---|---|---|
 | Orquestrador | n8n (self-hosted via Docker) | Gratuito |
 | CMS | WordPress (ja existente) | -- |
-| LLM | OpenRouter (modelos gratuitos: meta-llama/llama-3.1-8b, google/gemma-2-9b-it) | Gratuito |
+| LLM | OpenRouter (modelos gratuitos: google/gemma-3-27b-it, deepseek/deepseek-chat-v3-0324) | Gratuito |
 | Aprovacao | Telegram Bot | Gratuito |
 | Distribuicao Social | Facebook Graph API, Telegram Bot API | Gratuito |
 | WhatsApp | Evolution API (self-hosted) ou WhatsApp Business API | Gratuito (Evolution) |
@@ -203,10 +203,10 @@ congenial-fiesta/
 
 Modelos com uso gratuito no OpenRouter (sujeito a disponibilidade):
 
-- `meta-llama/llama-3.1-8b-instruct:free` - Bom para reescrita
-- `google/gemma-2-9b-it:free` - Boa qualidade geral
-- `mistralai/mistral-7b-instruct:free` - Rapido e eficiente
-- `qwen/qwen-2-7b-instruct:free` - Alternativa solida
+- `google/gemma-3-27b-it:free` - Bom para reescrita e classificacao (principal)
+- `deepseek/deepseek-chat-v3-0324:free` - Alta qualidade geral
+- `qwen/qwq-32b:free` - Bom para raciocinio e classificacao
+- `mistralai/mistral-small-3.1-24b-instruct:free` - Rapido e eficiente
 
 **Estrategia:** Configurar fallback entre modelos caso um esteja indisponivel.
 
