@@ -1,133 +1,150 @@
 <?php
 /**
- * View: Pagina de Logs.
+ * Admin view: Logs
  *
  * @package JEP_Automacao
  */
 
 defined( 'ABSPATH' ) || exit;
 
-$logger  = jep_automacao()->logger();
-$level   = sanitize_text_field( wp_unslash( $_GET['level'] ?? '' ) );
-$paged   = max( 1, absint( $_GET['paged'] ?? 1 ) );
-$limit   = 50;
-$offset  = ( $paged - 1 ) * $limit;
-$logs    = $logger->get_logs( $limit, $offset, $level );
-$total   = $logger->count_logs( $level );
-$pages   = ceil( $total / $limit );
-$summary = $logger->get_summary();
+$logger = jep_automacao()->logger();
+
+// Handle clear actions.
+if ( isset( $_POST['jep_clear_logs_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['jep_clear_logs_nonce'] ) ), 'jep_clear_logs' ) ) {
+	if ( isset( $_POST['clear_type'] ) ) {
+		if ( 'old' === $_POST['clear_type'] ) {
+			$deleted = $logger->prune( 30 );
+			echo '<div class="notice notice-success is-dismissible"><p>' . sprintf( esc_html__( '%d registros mais antigos que 30 dias removidos.', 'jep-automacao' ), (int) $deleted ) . '</p></div>';
+		} elseif ( 'all' === $_POST['clear_type'] ) {
+			global $wpdb;
+			$deleted = $wpdb->query( "DELETE FROM {$wpdb->prefix}jep_logs" );
+			echo '<div class="notice notice-success is-dismissible"><p>' . sprintf( esc_html__( '%d registros removidos.', 'jep-automacao' ), (int) $deleted ) . '</p></div>';
+		}
+	}
+}
+
+$level        = isset( $_GET['level'] ) ? sanitize_text_field( wp_unslash( $_GET['level'] ) ) : '';
+$per_page     = 50;
+$current_page = isset( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
+$offset       = ( $current_page - 1 ) * $per_page;
+$total        = $logger->count_logs( $level );
+$logs         = $logger->get_logs( $per_page, $offset, $level );
+$total_pages  = (int) ceil( $total / $per_page );
 
 $level_labels = array(
-	''        => __( 'Todos', 'jep-automacao' ),
-	'info'    => __( 'Info', 'jep-automacao' ),
-	'success' => __( 'Sucesso', 'jep-automacao' ),
-	'warning' => __( 'Aviso', 'jep-automacao' ),
-	'error'   => __( 'Erro', 'jep-automacao' ),
+	'info'    => array( 'label' => 'Info',    'class' => 'jep-badge-info' ),
+	'success' => array( 'label' => 'Sucesso', 'class' => 'jep-badge-success' ),
+	'warning' => array( 'label' => 'Aviso',   'class' => 'jep-badge-warning' ),
+	'error'   => array( 'label' => 'Erro',    'class' => 'jep-badge-error' ),
 );
 ?>
 <div class="wrap jep-wrap">
-	<h1 class="jep-title">
-		<span class="dashicons dashicons-list-view"></span>
-		<?php esc_html_e( 'Logs de Atividade', 'jep-automacao' ); ?>
-	</h1>
+	<h1><?php esc_html_e( 'Logs de Atividade', 'jep-automacao' ); ?></h1>
 
-	<!-- Resumo -->
-	<div class="jep-cards" style="margin-bottom:20px;">
-		<?php foreach ( array( 'info', 'success', 'warning', 'error' ) as $lvl ) : ?>
-			<a class="jep-card jep-card--link <?php echo ( $level === $lvl ) ? 'jep-card--active' : ''; ?>"
-			   href="<?php echo esc_url( add_query_arg( array( 'page' => 'jep-automacao-logs', 'level' => $lvl, 'paged' => 1 ), admin_url( 'admin.php' ) ) ); ?>">
-				<strong><?php echo esc_html( $summary[ $lvl ] ); ?></strong>
-				<span><?php echo esc_html( $level_labels[ $lvl ] ); ?></span>
-			</a>
-		<?php endforeach; ?>
+	<div class="jep-logs-toolbar">
+		<form method="get">
+			<input type="hidden" name="page" value="jep-automacao-logs">
+			<select name="level" onchange="this.form.submit()">
+				<option value=""><?php esc_html_e( 'Todos os níveis', 'jep-automacao' ); ?></option>
+				<?php foreach ( $level_labels as $key => $meta ) : ?>
+					<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $level, $key ); ?>>
+						<?php echo esc_html( $meta['label'] ); ?>
+					</option>
+				<?php endforeach; ?>
+			</select>
+		</form>
+		<form method="post" style="display:inline-block; margin-left: 16px;">
+			<?php wp_nonce_field( 'jep_clear_logs', 'jep_clear_logs_nonce' ); ?>
+			<button type="submit" name="clear_type" value="old" class="button">
+				<?php esc_html_e( '🗑 Limpar +30 dias', 'jep-automacao' ); ?>
+			</button>
+			<button type="submit" name="clear_type" value="all" class="button button-link-delete"
+				onclick="return confirm('Remover TODOS os logs? Esta ação não pode ser desfeita.')">
+				<?php esc_html_e( '🗑 Limpar Tudo', 'jep-automacao' ); ?>
+			</button>
+		</form>
+		<span class="jep-log-total"><?php echo esc_html( $total . ' registros' ); ?></span>
 	</div>
 
-	<!-- Filtro por nivel -->
-	<div class="tablenav top">
-		<div class="alignleft actions">
-			<?php foreach ( $level_labels as $lvl => $label ) : ?>
-				<a href="<?php echo esc_url( add_query_arg( array( 'page' => 'jep-automacao-logs', 'level' => $lvl, 'paged' => 1 ), admin_url( 'admin.php' ) ) ); ?>"
-				   class="button <?php echo ( $level === $lvl ) ? 'button-primary' : 'button-secondary'; ?>" style="margin-right:4px;">
-					<?php echo esc_html( $label ); ?>
-				</a>
-			<?php endforeach; ?>
-		</div>
-
-		<div class="alignright actions">
-			<button class="button button-secondary" id="jep-clear-logs-30"><?php esc_html_e( 'Limpar +30 dias', 'jep-automacao' ); ?></button>
-			<button class="button button-link-delete" id="jep-clear-logs-all" style="margin-left:8px;"><?php esc_html_e( 'Limpar Todos', 'jep-automacao' ); ?></button>
-		</div>
-		<br class="clear">
-	</div>
-
-	<!-- Tabela -->
 	<?php if ( empty( $logs ) ) : ?>
-		<p class="description"><?php esc_html_e( 'Nenhum log encontrado.', 'jep-automacao' ); ?></p>
+		<div class="jep-empty-state">
+			<span class="dashicons dashicons-list-view" style="font-size:48px; color:#ccc;"></span>
+			<p><?php esc_html_e( 'Nenhum registro encontrado.', 'jep-automacao' ); ?></p>
+		</div>
 	<?php else : ?>
-		<table class="wp-list-table widefat fixed striped jep-log-table">
+		<table class="wp-list-table widefat fixed striped">
 			<thead>
 				<tr>
-					<th width="150"><?php esc_html_e( 'Data', 'jep-automacao' ); ?></th>
-					<th width="90"><?php esc_html_e( 'Nivel', 'jep-automacao' ); ?></th>
-					<th width="180"><?php esc_html_e( 'Evento', 'jep-automacao' ); ?></th>
-					<th width="60"><?php esc_html_e( 'Post', 'jep-automacao' ); ?></th>
+					<th style="width:80px"><?php esc_html_e( 'Nível', 'jep-automacao' ); ?></th>
+					<th style="width:200px"><?php esc_html_e( 'Evento', 'jep-automacao' ); ?></th>
 					<th><?php esc_html_e( 'Mensagem', 'jep-automacao' ); ?></th>
-					<th width="60"><?php esc_html_e( 'Contexto', 'jep-automacao' ); ?></th>
+					<th style="width:70px"><?php esc_html_e( 'Post', 'jep-automacao' ); ?></th>
+					<th style="width:160px"><?php esc_html_e( 'Data/Hora', 'jep-automacao' ); ?></th>
+					<th style="width:70px"><?php esc_html_e( 'Ctx', 'jep-automacao' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
-				<?php foreach ( $logs as $log ) : ?>
-					<tr>
-						<td><?php echo esc_html( wp_date( 'd/m/Y H:i:s', strtotime( $log->created_at ) ) ); ?></td>
-						<td><span class="jep-badge jep-badge--<?php echo esc_attr( $log->level ); ?>"><?php echo esc_html( $log->level ); ?></span></td>
-						<td><code><?php echo esc_html( $log->event ); ?></code></td>
-						<td>
-							<?php if ( $log->post_id ) : ?>
-								<a href="<?php echo esc_url( get_edit_post_link( $log->post_id ) ); ?>" target="_blank">#<?php echo esc_html( $log->post_id ); ?></a>
-							<?php else : ?>
-								&mdash;
-							<?php endif; ?>
-						</td>
-						<td><?php echo esc_html( $log->message ); ?></td>
-						<td>
-							<?php if ( $log->context ) : ?>
-								<a href="#" class="jep-show-context" data-context="<?php echo esc_attr( $log->context ); ?>" title="<?php esc_attr_e( 'Ver contexto', 'jep-automacao' ); ?>">
-									<span class="dashicons dashicons-info"></span>
-								</a>
-							<?php else : ?>
-								&mdash;
-							<?php endif; ?>
-						</td>
-					</tr>
+				<?php foreach ( $logs as $log ) :
+					$meta = $level_labels[ $log->level ] ?? array( 'label' => $log->level, 'class' => '' );
+				?>
+				<tr>
+					<td><span class="jep-badge <?php echo esc_attr( $meta['class'] ); ?>"><?php echo esc_html( $meta['label'] ); ?></span></td>
+					<td><code><?php echo esc_html( $log->event ); ?></code></td>
+					<td><?php echo esc_html( $log->message ); ?></td>
+					<td>
+						<?php if ( $log->post_id ) : ?>
+							<a href="<?php echo esc_url( get_edit_post_link( $log->post_id ) ); ?>" target="_blank">#<?php echo (int) $log->post_id; ?></a>
+						<?php else : ?>&mdash;<?php endif; ?>
+					</td>
+					<td><?php echo esc_html( date_i18n( 'd/m/Y H:i', strtotime( $log->created_at ) ) ); ?></td>
+					<td>
+						<?php if ( ! empty( $log->context ) ) : ?>
+							<button class="button button-small jep-view-context" data-context="<?php echo esc_attr( $log->context ); ?>">Ver</button>
+						<?php else : ?>&mdash;<?php endif; ?>
+					</td>
+				</tr>
 				<?php endforeach; ?>
 			</tbody>
 		</table>
 
-		<!-- Paginacao -->
-		<?php if ( $pages > 1 ) : ?>
-			<div class="tablenav bottom">
-				<div class="tablenav-pages">
-					<?php
-					echo wp_kses_post( paginate_links( array(
-						'base'    => add_query_arg( 'paged', '%#%' ),
-						'format'  => '',
-						'current' => $paged,
-						'total'   => $pages,
-						'prev_text' => '&laquo;',
-						'next_text' => '&raquo;',
-					) ) );
-					?>
-				</div>
-			</div>
+		<?php if ( $total_pages > 1 ) :
+			$base_url = add_query_arg( array( 'page' => 'jep-automacao-logs', 'level' => $level ), admin_url( 'admin.php' ) );
+		?>
+		<div class="tablenav bottom"><div class="tablenav-pages">
+			<?php if ( $current_page > 1 ) : ?>
+				<a class="button" href="<?php echo esc_url( add_query_arg( 'paged', $current_page - 1, $base_url ) ); ?>">&laquo; Anterior</a>
+			<?php endif; ?>
+			<span class="displaying-num">Página <?php echo (int) $current_page; ?> de <?php echo (int) $total_pages; ?></span>
+			<?php if ( $current_page < $total_pages ) : ?>
+				<a class="button" href="<?php echo esc_url( add_query_arg( 'paged', $current_page + 1, $base_url ) ); ?>">Próxima &raquo;</a>
+			<?php endif; ?>
+		</div></div>
 		<?php endif; ?>
 	<?php endif; ?>
 </div>
 
-<!-- Modal de contexto -->
-<div id="jep-context-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); z-index:9999; align-items:center; justify-content:center;">
-	<div style="background:#fff; padding:20px; border-radius:8px; max-width:600px; width:90%; max-height:80vh; overflow:auto; position:relative;">
-		<button id="jep-close-modal" style="position:absolute; top:10px; right:10px; background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
-		<h3><?php esc_html_e( 'Contexto do Log', 'jep-automacao' ); ?></h3>
-		<pre id="jep-context-content" style="background:#f1f1f1; padding:10px; border-radius:4px; overflow:auto; white-space:pre-wrap;"></pre>
+<div id="jep-context-modal" class="jep-modal" style="display:none;">
+	<div class="jep-modal-content">
+		<button class="jep-modal-close">&times;</button>
+		<h2>Contexto do Log</h2>
+		<pre id="jep-context-content" style="background:#f1f1f1;padding:12px;overflow:auto;max-height:400px;font-size:12px;"></pre>
 	</div>
 </div>
+
+<style>
+.jep-logs-toolbar{display:flex;align-items:center;gap:12px;margin:12px 0;flex-wrap:wrap;}
+.jep-log-total{margin-left:auto;color:#666;font-size:13px;}
+</style>
+<script>
+jQuery(function($){
+	$('.jep-view-context').on('click',function(){
+		var raw=$(this).data('context'),pretty='';
+		try{pretty=JSON.stringify(JSON.parse(raw),null,2);}catch(e){pretty=raw;}
+		$('#jep-context-content').text(pretty);
+		$('#jep-context-modal').fadeIn(200);
+	});
+	$(document).on('click','.jep-modal-close,.jep-modal',function(e){
+		if($(e.target).is('.jep-modal-close,.jep-modal'))$('#jep-context-modal').fadeOut(200);
+	});
+});
+</script>
