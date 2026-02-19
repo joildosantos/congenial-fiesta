@@ -39,12 +39,26 @@ class JEP_Telegram_Bot {
 	private $api_base = 'https://api.telegram.org/bot';
 
 	/**
-	 * Constructor. Loads the bot token from settings.
+	 * Constructor. Intentionally empty — token is loaded lazily to avoid
+	 * circular initialization during plugin bootstrap (jep_automacao() may
+	 * not be fully initialised when this object is constructed).
 	 *
 	 * @since 2.0.0
 	 */
-	public function __construct() {
-		$this->token = jep_automacao()->settings()->get_telegram_bot_token();
+	public function __construct() {}
+
+	/**
+	 * Returns the bot token, loading it from settings on first access.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @return string
+	 */
+	private function get_token() {
+		if ( null === $this->token ) {
+			$this->token = jep_automacao()->settings()->get_telegram_bot_token();
+		}
+		return $this->token;
 	}
 
 	/**
@@ -60,7 +74,7 @@ class JEP_Telegram_Bot {
 	 * @return mixed The decoded 'result' field from the Telegram API response.
 	 */
 	public function api_call( $method, $params = [] ) {
-		$url = $this->api_base . $this->token . '/' . $method;
+		$url = $this->api_base . $this->get_token() . '/' . $method;
 
 		$args = [
 			'body'    => wp_json_encode( $params ),
@@ -371,6 +385,6 @@ class JEP_Telegram_Bot {
 	public function is_configured() {
 		$editor_chat_id = jep_automacao()->settings()->get_telegram_editor_chat_id();
 
-		return ! empty( $this->token ) && ! empty( $editor_chat_id );
+		return ! empty( $this->get_token() ) && ! empty( $editor_chat_id );
 	}
 }

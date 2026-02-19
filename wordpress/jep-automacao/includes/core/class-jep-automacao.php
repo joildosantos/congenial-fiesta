@@ -10,7 +10,14 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Class JEP_Automacao
  *
- * Ponto de entrada central do plugin. Instancia e conecta todos os modulos.
+ * Ponto de entrada central do plugin. Instancia e conecta todos os modulos
+ * em tres fases para minimizar o uso de memoria durante plugins_loaded:
+ *
+ * Fase 1 — plugins_loaded: Settings + Logger (construtores triviais, sempre necessarios).
+ * Fase 2 — init prioridade 1: todos os outros modulos. O WP Cron dispara em
+ *           init prioridade 10, portanto o Scheduler ja esta registrado a tempo.
+ * Fase 3 — admin_init prioridade 5: Admin. Todos os hooks de menu/AJAX do
+ *           admin disparam apos admin_init.
  */
 class JEP_Automacao {
 
@@ -41,20 +48,35 @@ class JEP_Automacao {
 	}
 
 	/**
-	 * Construtor privado. Carrega modulos e registra hooks iniciais.
+	 * Construtor privado.
+	 *
+	 * Fase 1: carrega Settings e Logger imediatamente (construtores minimos,
+	 * sem risco de OOM). Registra as fases 2 e 3 como callbacks de hooks.
 	 */
 	private function __construct() {
-		$this->load_modules();
 		add_action( 'init', array( $this, 'load_textdomain' ) );
+
+		// Fase 1 — modulos sempre necessarios, construtores triviais.
+		$this->modules['settings'] = new JEP_Settings();
+		$this->modules['logger']   = new JEP_Logger();
+
+		// Fase 2 — restante dos modulos diferido para init.
+		add_action( 'init', array( $this, 'load_modules' ), 1 );
+
+		// Fase 3 — modulo de admin diferido para admin_init.
+		add_action( 'admin_init', array( $this, 'load_admin_module' ), 5 );
 	}
 
 	/**
-	 * Instancia todos os modulos do plugin na ordem correta de dependencia.
+	 * Fase 2: instancia todos os modulos nao-admin na ordem correta de
+	 * dependencia. Executado em init prioridade 1.
+	 *
+	 * O WP Cron (wp_cron()) e chamado em init prioridade 10, portanto o
+	 * JEP_Scheduler registra seus add_action() antes de qualquer evento
+	 * de cron ser disparado.
 	 */
-	private function load_modules() {
+	public function load_modules() {
 		// --- Core ---
-		$this->modules['settings']  = new JEP_Settings();
-		$this->modules['logger']    = new JEP_Logger();
 		$this->modules['scheduler'] = new JEP_Scheduler();
 
 		// --- LLM ---
@@ -79,15 +101,20 @@ class JEP_Automacao {
 		$this->modules['source_discovery'] = new JEP_Source_Discovery();
 		$this->modules['prompt_evaluator'] = new JEP_Prompt_Evaluator();
 
-		// --- Image (static utility classes — loaded via autoloader, no instantiation needed) ---
+		// --- Image (classes utilitarias estaticas — carregadas via autoloader) ---
 		class_exists( 'JEP_Image_GD' );
 		class_exists( 'JEP_Image_AI' );
 
 		// --- API ---
 		$this->modules['rest_api'] = new JEP_Rest_Api();
+	}
 
-		// --- Admin (only in back-end context) ---
-		if ( is_admin() ) {
+	/**
+	 * Fase 3: instancia o modulo de administracao.
+	 * Executado em admin_init prioridade 5.
+	 */
+	public function load_admin_module() {
+		if ( is_admin() && ! isset( $this->modules['admin'] ) ) {
 			$this->modules['admin'] = new JEP_Admin();
 		}
 	}
