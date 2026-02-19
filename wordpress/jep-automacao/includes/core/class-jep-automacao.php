@@ -63,6 +63,9 @@ class JEP_Automacao {
 	 * quando esses hooks efetivamente disparam.
 	 */
 	private function __construct() {
+		// Garante que o schema do banco esta atualizado antes de usar qualquer modulo.
+		JEP_Installer::maybe_upgrade();
+
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 
 		// Fase 1 — modulos sempre necessarios, construtores triviais.
