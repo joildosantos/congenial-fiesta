@@ -40,13 +40,27 @@ class JEP_Telegram_Publisher {
 	private $editor_chat_id;
 
 	/**
-	 * Constructor. Initialises the bot and loads the editor chat ID from settings.
+	 * Constructor. Initialises the bot instance.
+	 * editor_chat_id is loaded lazily to avoid circular initialisation.
 	 *
 	 * @since 2.0.0
 	 */
 	public function __construct() {
-		$this->bot            = new JEP_Telegram_Bot();
-		$this->editor_chat_id = jep_automacao()->settings()->get_telegram_editor_chat_id();
+		$this->bot = new JEP_Telegram_Bot();
+	}
+
+	/**
+	 * Returns the editor chat ID, loading it from settings on first access.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @return string|int
+	 */
+	private function get_editor_chat_id() {
+		if ( null === $this->editor_chat_id ) {
+			$this->editor_chat_id = jep_automacao()->settings()->get_telegram_editor_chat_id();
+		}
+		return $this->editor_chat_id;
 	}
 
 	/**
@@ -83,12 +97,12 @@ class JEP_Telegram_Publisher {
 		$from_id = isset( $message['from']['id'] ) ? (string) $message['from']['id'] : '';
 
 		// Security: only accept messages from the configured editor chat.
-		if ( (string) $this->editor_chat_id !== $from_id ) {
+		if ( (string) $this->get_editor_chat_id() !== $from_id ) {
 			jep_automacao()->logger()->info(
 				sprintf(
 					'[TelegramPublisher] Ignored message from unknown sender %s (expected %s).',
 					$from_id,
-					$this->editor_chat_id
+					$this->get_editor_chat_id()
 				)
 			);
 			return;
@@ -420,7 +434,7 @@ class JEP_Telegram_Publisher {
 		);
 
 		$this->bot->send_photo(
-			$this->editor_chat_id,
+			$this->get_editor_chat_id(),
 			$image_url,
 			$preview_text,
 			'Markdown',
