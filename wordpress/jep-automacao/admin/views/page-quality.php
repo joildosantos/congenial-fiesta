@@ -7,8 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$discovery = jep_automacao()->modules['source_discovery'];
-$evaluator = jep_automacao()->modules['prompt_evaluator'];
+$discovery = new JEP_Source_Discovery();
+$evaluator = new JEP_Prompt_Evaluator();
 
 // Handle POST actions.
 if ( isset( $_POST['jep_quality_action'] ) && check_admin_referer( 'jep_quality_nonce' ) && current_user_can( 'manage_options' ) ) {
@@ -36,13 +36,8 @@ if ( isset( $_POST['jep_quality_action'] ) && check_admin_referer( 'jep_quality_
 	}
 }
 
-<<<<<<< HEAD
-$suggestions  = $discovery->get_pending_suggestions();
-$avg_scores   = $evaluator->get_average_scores( 30 );
-=======
 $suggestions = $discovery->get_pending_suggestions();
 $avg_scores  = $evaluator->get_average_scores( 30 );
->>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 ?>
 <div class="wrap jep-wrap">
 	<h1 class="jep-title">
@@ -53,11 +48,7 @@ $avg_scores  = $evaluator->get_average_scores( 30 );
 	<!-- Source Discovery -->
 	<div class="jep-section">
 		<h2><?php esc_html_e( 'Fontes RSS Sugeridas pela IA', 'jep-automacao' ); ?></h2>
-<<<<<<< HEAD
-		<p class="description"><?php esc_html_e( 'A IA analisa os dominios dos itens RSS processados e sugere novos veiculos jornalisticos relevantes para periferias brasileiras.', 'jep-automacao' ); ?></p>
-=======
 		<p class="description"><?php esc_html_e( 'A IA analisa os dominios dos itens RSS processados e sugere novos veiculos jornalisticos relevantes. Execute para buscar novas sugestoes ou aguarde o cron diario das 03h.', 'jep-automacao' ); ?></p>
->>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 
 		<form method="post" style="margin-bottom:15px">
 			<?php wp_nonce_field( 'jep_quality_nonce' ); ?>
@@ -124,11 +115,7 @@ $avg_scores  = $evaluator->get_average_scores( 30 );
 			</tbody>
 		</table>
 		<?php else : ?>
-<<<<<<< HEAD
 			<p class="description"><?php esc_html_e( 'Nenhuma sugestao de fonte pendente. Execute a descoberta acima ou aguarde o cron das 03h.', 'jep-automacao' ); ?></p>
-=======
-			<p class="description"><?php esc_html_e( 'Nenhuma sugestao de fonte pendente.', 'jep-automacao' ); ?></p>
->>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 		<?php endif; ?>
 	</div>
 
