@@ -11,13 +11,13 @@ defined( 'ABSPATH' ) || exit;
  * Class JEP_Automacao
  *
  * Ponto de entrada central do plugin. Instancia e conecta todos os modulos
- * em tres fases para minimizar o uso de memoria durante plugins_loaded:
+ * em duas fases para minimizar o uso de memoria durante plugins_loaded:
  *
  * Fase 1 — plugins_loaded: Settings + Logger (construtores triviais, sempre necessarios).
- * Fase 2 — init prioridade 1: todos os outros modulos. O WP Cron dispara em
- *           init prioridade 10, portanto o Scheduler ja esta registrado a tempo.
- * Fase 3 — admin_init prioridade 5: Admin. Todos os hooks de menu/AJAX do
- *           admin disparam apos admin_init.
+ * Fase 2 — init prioridade 1: todos os outros modulos, incluindo Admin quando
+ *           is_admin(). init dispara ANTES de admin_menu (prioridade 10), portanto
+ *           todos os add_action() do JEP_Admin chegam a tempo. O WP Cron tambem
+ *           dispara em init prioridade 10, portanto o Scheduler esta registrado antes.
  */
 class JEP_Automacao {
 
@@ -51,7 +51,16 @@ class JEP_Automacao {
 	 * Construtor privado.
 	 *
 	 * Fase 1: carrega Settings e Logger imediatamente (construtores minimos,
-	 * sem risco de OOM). Registra as fases 2 e 3 como callbacks de hooks.
+	 * sem risco de OOM). Registra a fase 2 como callback de init.
+	 *
+	 * Nota sobre a ordem dos hooks do WordPress:
+	 *   plugins_loaded → init → admin_menu → admin_bar_menu → admin_init
+	 *
+	 * load_modules() dispara em init prioridade 1, portanto antes de
+	 * admin_menu (prioridade 10). Isso garante que JEP_Admin registre
+	 * add_action('admin_menu', ...) no momento certo.
+	 * Os handlers wp_ajax_* tambem sao registrados antes de wp_loaded,
+	 * quando esses hooks efetivamente disparam.
 	 */
 	private function __construct() {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
@@ -60,11 +69,8 @@ class JEP_Automacao {
 		$this->modules['settings'] = new JEP_Settings();
 		$this->modules['logger']   = new JEP_Logger();
 
-		// Fase 2 — restante dos modulos diferido para init.
+		// Fase 2 — restante dos modulos diferido para init prioridade 1.
 		add_action( 'init', array( $this, 'load_modules' ), 1 );
-
-		// Fase 3 — modulo de admin diferido para admin_init.
-		add_action( 'admin_init', array( $this, 'load_admin_module' ), 5 );
 	}
 
 	/**
@@ -107,14 +113,9 @@ class JEP_Automacao {
 
 		// --- API ---
 		$this->modules['rest_api'] = new JEP_Rest_Api();
-	}
 
-	/**
-	 * Fase 3: instancia o modulo de administracao.
-	 * Executado em admin_init prioridade 5.
-	 */
-	public function load_admin_module() {
-		if ( is_admin() && ! isset( $this->modules['admin'] ) ) {
+		// --- Admin (apenas no contexto de back-end ou AJAX) ---
+		if ( is_admin() ) {
 			$this->modules['admin'] = new JEP_Admin();
 		}
 	}
