@@ -1,54 +1,60 @@
 <?php
 /**
- * View: Dashboard principal do plugin.
+ * View: Dashboard principal do plugin JEP Automacao v2.
  *
  * @package JEP_Automacao
  */
 
 defined( 'ABSPATH' ) || exit;
 
-$settings  = jep_automacao()->settings();
-$logger    = jep_automacao()->logger();
-$summary   = $logger->get_summary();
-$recent    = $logger->get_logs( 10 );
-$n8n_ok    = $settings->is_n8n_configured();
+$settings       = jep_automacao()->settings();
+$logger         = jep_automacao()->logger();
+$summary        = $logger->get_summary();
+$recent         = $logger->get_logs( 10 );
+$telegram_ok    = $settings->is_telegram_configured();
+$instagram_ok   = $settings->is_instagram_enabled();
+$nonce          = wp_create_nonce( 'jep_admin_nonce' );
 
-$workflows = array(
-	'conteudo-frio'        => array(
-		'label' => 'Conteudo Frio',
-		'desc'  => 'Pautas evergreen (seg/qua/sex)',
+$pipelines = array(
+	'cold_content'   => array(
+		'label' => __( 'Conteudo Frio', 'jep-automacao' ),
+		'desc'  => __( 'Processa a proxima pauta do banco (seg/qua/sex 08h)', 'jep-automacao' ),
 		'icon'  => 'dashicons-edit-page',
+		'opt'   => 'cold',
 	),
-	'conteudo-diario'      => array(
-		'label' => 'Conteudo Diario',
-		'desc'  => 'Noticias via RSS (diario 6h)',
+	'daily'          => array(
+		'label' => __( 'Conteudo Diario', 'jep-automacao' ),
+		'desc'  => __( 'Busca RSS + reescrita + envio ao Telegram (diario 06h)', 'jep-automacao' ),
 		'icon'  => 'dashicons-rss',
+		'opt'   => 'daily',
 	),
-	'auto-pesquisa-pautas' => array(
-		'label' => 'Pesquisa de Pautas',
-		'desc'  => 'Gera pautas automaticamente (semanal)',
+	'topic_research' => array(
+		'label' => __( 'Pesquisa de Pautas', 'jep-automacao' ),
+		'desc'  => __( 'Gera 7 pautas por territorio (semanal segunda 07h)', 'jep-automacao' ),
 		'icon'  => 'dashicons-search',
+		'opt'   => 'research',
 	),
-	'resumo-semanal'       => array(
-		'label' => 'Resumo Semanal',
-		'desc'  => 'Relatorio via Telegram (domingo 20h)',
-		'icon'  => 'dashicons-chart-bar',
+	'rss_fetch'      => array(
+		'label' => __( 'Buscar RSS Agora', 'jep-automacao' ),
+		'desc'  => __( 'Forca a busca imediata de todos os feeds ativos', 'jep-automacao' ),
+		'icon'  => 'dashicons-update',
+		'opt'   => null,
 	),
 );
 ?>
 <div class="wrap jep-wrap">
 	<h1 class="jep-title">
-		<span class="dashicons dashicons-rss"></span>
-		<?php esc_html_e( 'JEP Automacao Editorial', 'jep-automacao' ); ?>
+		<span class="dashicons dashicons-superhero-alt"></span>
+		<?php esc_html_e( 'JEP Automacao Editorial v2', 'jep-automacao' ); ?>
 	</h1>
 
-	<?php if ( ! $n8n_ok ) : ?>
+	<?php if ( ! $telegram_ok ) : ?>
 		<div class="notice notice-warning">
 			<p>
 				<?php
 				printf(
 					/* translators: %s: link para configuracoes */
-					esc_html__( 'O plugin ainda nao esta configurado. %s para inserir a URL do webhook n8n.', 'jep-automacao' ),
+					esc_html__( 'Telegram ainda nao configurado. %s para inserir o token do bot e o Chat ID do editor.', 'jep-automacao' ),
 					'<a href="' . esc_url( admin_url( 'admin.php?page=jep-automacao-settings' ) ) . '">' . esc_html__( 'Acesse as Configuracoes', 'jep-automacao' ) . '</a>'
 				);
 				?>
@@ -58,11 +64,19 @@ $workflows = array(
 
 	<!-- Status cards -->
 	<div class="jep-cards">
-		<div class="jep-card jep-card--<?php echo $n8n_ok ? 'success' : 'warning'; ?>">
-			<span class="dashicons dashicons-<?php echo $n8n_ok ? 'yes-alt' : 'warning'; ?>"></span>
+		<div class="jep-card jep-card--<?php echo $telegram_ok ? 'success' : 'warning'; ?>">
+			<span class="dashicons dashicons-<?php echo $telegram_ok ? 'yes-alt' : 'warning'; ?>"></span>
 			<div>
-				<strong><?php esc_html_e( 'n8n', 'jep-automacao' ); ?></strong>
-				<span><?php echo $n8n_ok ? esc_html__( 'Configurado', 'jep-automacao' ) : esc_html__( 'Nao configurado', 'jep-automacao' ); ?></span>
+				<strong><?php esc_html_e( 'Telegram', 'jep-automacao' ); ?></strong>
+				<span><?php echo $telegram_ok ? esc_html__( 'Configurado', 'jep-automacao' ) : esc_html__( 'Nao configurado', 'jep-automacao' ); ?></span>
+			</div>
+		</div>
+
+		<div class="jep-card jep-card--<?php echo $instagram_ok ? 'success' : 'info'; ?>">
+			<span class="dashicons dashicons-camera" style="color:<?php echo $instagram_ok ? '#2ecc71' : '#aaa'; ?>"></span>
+			<div>
+				<strong><?php esc_html_e( 'Instagram', 'jep-automacao' ); ?></strong>
+				<span><?php echo $instagram_ok ? esc_html__( 'Habilitado', 'jep-automacao' ) : esc_html__( 'Desativado', 'jep-automacao' ); ?></span>
 			</div>
 		</div>
 
@@ -81,53 +95,34 @@ $workflows = array(
 				<span><?php esc_html_e( 'Alertas / Erros', 'jep-automacao' ); ?></span>
 			</div>
 		</div>
-
-		<div class="jep-card">
-			<span class="dashicons dashicons-admin-post" style="color:#3498db"></span>
-			<div>
-				<strong><?php echo esc_html( $summary['info'] ); ?></strong>
-				<span><?php esc_html_e( 'Eventos Info', 'jep-automacao' ); ?></span>
-			</div>
-		</div>
 	</div>
 
-	<!-- Disparar workflows -->
+	<!-- Executar pipelines manualmente -->
 	<div class="jep-section">
-		<h2><?php esc_html_e( 'Disparar Workflows Manualmente', 'jep-automacao' ); ?></h2>
-		<p class="description"><?php esc_html_e( 'Aciona um workflow no n8n imediatamente, sem esperar o agendamento automatico.', 'jep-automacao' ); ?></p>
+		<h2><?php esc_html_e( 'Executar Pipelines Manualmente', 'jep-automacao' ); ?></h2>
+		<p class="description"><?php esc_html_e( 'Dispara o pipeline imediatamente, sem esperar o agendamento automatico.', 'jep-automacao' ); ?></p>
 
 		<div class="jep-workflows">
-			<?php foreach ( $workflows as $workflow_id => $workflow ) : ?>
+			<?php foreach ( $pipelines as $pipeline_id => $pipeline ) : ?>
+				<?php
+				$enabled = is_null( $pipeline['opt'] ) || $settings->is_cron_enabled( $pipeline['opt'] );
+				?>
 				<div class="jep-workflow-card">
-					<span class="dashicons <?php echo esc_attr( $workflow['icon'] ); ?>"></span>
+					<span class="dashicons <?php echo esc_attr( $pipeline['icon'] ); ?>"></span>
 					<div class="jep-workflow-info">
-						<strong><?php echo esc_html( $workflow['label'] ); ?></strong>
-						<small><?php echo esc_html( $workflow['desc'] ); ?></small>
+						<strong><?php echo esc_html( $pipeline['label'] ); ?></strong>
+						<small><?php echo esc_html( $pipeline['desc'] ); ?></small>
 					</div>
 					<button
 						class="button button-primary jep-trigger-btn"
-						data-workflow="<?php echo esc_attr( $workflow_id ); ?>"
-						<?php disabled( ! $n8n_ok ); ?>
+						data-pipeline="<?php echo esc_attr( $pipeline_id ); ?>"
+						data-nonce="<?php echo esc_attr( $nonce ); ?>"
 					>
-						<?php esc_html_e( 'Disparar', 'jep-automacao' ); ?>
+						<?php esc_html_e( 'Executar Agora', 'jep-automacao' ); ?>
 					</button>
 				</div>
 			<?php endforeach; ?>
 		</div>
-	</div>
-
-	<!-- Testar webhook -->
-	<div class="jep-section">
-		<h2><?php esc_html_e( 'Testar Conexao com n8n', 'jep-automacao' ); ?></h2>
-		<button
-			class="button button-secondary"
-			id="jep-test-webhook"
-			<?php disabled( ! $n8n_ok ); ?>
-		>
-			<span class="dashicons dashicons-admin-plugins"></span>
-			<?php esc_html_e( 'Testar Webhook', 'jep-automacao' ); ?>
-		</button>
-		<span id="jep-test-result" style="margin-left:10px;"></span>
 	</div>
 
 	<!-- Logs recentes -->
@@ -165,10 +160,18 @@ $workflows = array(
 		<?php endif; ?>
 	</div>
 
-	<!-- REST API info -->
+	<!-- REST API / Webhook info -->
 	<div class="jep-section jep-section--info">
-		<h2><?php esc_html_e( 'REST API - Endpoints para n8n', 'jep-automacao' ); ?></h2>
-		<p class="description"><?php esc_html_e( 'Use o Token Secreto no header X-JEP-Token para autenticar requisicoes do n8n.', 'jep-automacao' ); ?></p>
+		<h2><?php esc_html_e( 'REST API — Endpoints', 'jep-automacao' ); ?></h2>
+		<p class="description">
+			<?php
+			printf(
+				/* translators: %s: secret token */
+				esc_html__( 'Token secreto REST: %s', 'jep-automacao' ),
+				'<code>' . esc_html( $settings->get_rest_api_secret() ) . '</code>'
+			);
+			?>
+		</p>
 		<table class="jep-api-table">
 			<thead>
 				<tr>
@@ -179,31 +182,43 @@ $workflows = array(
 			</thead>
 			<tbody>
 				<tr>
+					<td><code class="jep-method post">POST</code></td>
+					<td><code><?php echo esc_html( rest_url( 'jep/v1/telegram-webhook' ) ); ?></code></td>
+					<td><?php esc_html_e( 'Webhook do bot Telegram (callbacks de aprovacao)', 'jep-automacao' ); ?></td>
+				</tr>
+				<tr>
 					<td><code class="jep-method get">GET</code></td>
 					<td><code><?php echo esc_html( rest_url( 'jep/v1/status' ) ); ?></code></td>
 					<td><?php esc_html_e( 'Status do plugin e resumo de logs', 'jep-automacao' ); ?></td>
-				</tr>
-				<tr>
-					<td><code class="jep-method post">POST</code></td>
-					<td><code><?php echo esc_html( rest_url( 'jep/v1/posts' ) ); ?></code></td>
-					<td><?php esc_html_e( 'Criar e publicar um post via n8n', 'jep-automacao' ); ?></td>
-				</tr>
-				<tr>
-					<td><code class="jep-method post">POST</code></td>
-					<td><code><?php echo esc_html( rest_url( 'jep/v1/media/from-url' ) ); ?></code></td>
-					<td><?php esc_html_e( 'Upload de imagem a partir de URL', 'jep-automacao' ); ?></td>
 				</tr>
 				<tr>
 					<td><code class="jep-method get">GET</code></td>
 					<td><code><?php echo esc_html( rest_url( 'jep/v1/logs' ) ); ?></code></td>
 					<td><?php esc_html_e( 'Consultar logs de atividade', 'jep-automacao' ); ?></td>
 				</tr>
-				<tr>
-					<td><code class="jep-method post">POST</code></td>
-					<td><code><?php echo esc_html( rest_url( 'jep/v1/logs' ) ); ?></code></td>
-					<td><?php esc_html_e( 'Registrar log externo vindo do n8n', 'jep-automacao' ); ?></td>
-				</tr>
 			</tbody>
 		</table>
 	</div>
 </div>
+
+<script>
+jQuery( document ).ready( function( $ ) {
+	$( '.jep-trigger-btn' ).on( 'click', function() {
+		var $btn     = $( this );
+		var pipeline = $btn.data( 'pipeline' );
+		var nonce    = $btn.data( 'nonce' );
+
+		$btn.prop( 'disabled', true ).text( '<?php echo esc_js( __( 'Executando...', 'jep-automacao' ) ); ?>' );
+
+		$.post( ajaxurl, { action: 'jep_run_pipeline', pipeline: pipeline, nonce: nonce }, function( res ) {
+			if ( res.success ) {
+				alert( res.data.message );
+			} else {
+				alert( res.data.message || '<?php echo esc_js( __( 'Erro ao executar.', 'jep-automacao' ) ); ?>' );
+			}
+		} ).always( function() {
+			$btn.prop( 'disabled', false ).text( '<?php echo esc_js( __( 'Executar Agora', 'jep-automacao' ) ); ?>' );
+		} );
+	} );
+} );
+</script>

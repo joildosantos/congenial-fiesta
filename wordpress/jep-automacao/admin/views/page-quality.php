@@ -1,6 +1,6 @@
 <?php
 /**
- * View: Qualidade / Fontes
+ * View: Qualidade / Fontes Sugeridas
  *
  * @package JEP_Automacao_Editorial
  */
@@ -10,38 +10,45 @@ defined( 'ABSPATH' ) || exit;
 $discovery = new JEP_Source_Discovery();
 $evaluator = new JEP_Prompt_Evaluator();
 
-// Handle actions.
+// Handle POST actions.
 if ( isset( $_POST['jep_quality_action'] ) && check_admin_referer( 'jep_quality_nonce' ) && current_user_can( 'manage_options' ) ) {
 	$action = sanitize_key( $_POST['jep_quality_action'] );
 
 	if ( 'run_discovery' === $action ) {
-		$count = $discovery->run();
+		$discovery->run();
 		echo '<div class="notice notice-success is-dismissible"><p>'
-			. sprintf( esc_html__( '%d novas fontes descobertas.', 'jep-automacao' ), (int) $count )
+			. esc_html__( 'Descoberta de fontes executada. Verifique a tabela abaixo.', 'jep-automacao' )
 			. '</p></div>';
 	}
 
-	if ( 'run_evaluation' === $action ) {
-		$results = $evaluator->evaluate_recent();
-		echo '<div class="notice notice-success is-dismissible"><p>'
-			. sprintf( esc_html__( '%d prompts avaliados.', 'jep-automacao' ), count( $results ) )
-			. '</p></div>';
+	if ( 'approve_source' === $action && ! empty( $_POST['source_id'] ) ) {
+		$result = $discovery->approve_suggestion( absint( $_POST['source_id'] ) );
+		if ( is_wp_error( $result ) ) {
+			echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $result->get_error_message() ) . '</p></div>';
+		} else {
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Fonte aprovada e adicionada aos feeds RSS.', 'jep-automacao' ) . '</p></div>';
+		}
+	}
+
+	if ( 'reject_source' === $action && ! empty( $_POST['source_id'] ) ) {
+		$discovery->reject_suggestion( absint( $_POST['source_id'] ) );
+		echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Fonte rejeitada.', 'jep-automacao' ) . '</p></div>';
 	}
 }
 
-$sources = $discovery->get_sources();
-$eval_summary = $evaluator->get_summary();
+$suggestions = $discovery->get_pending_suggestions();
+$avg_scores  = $evaluator->get_average_scores( 30 );
 ?>
 <div class="wrap jep-wrap">
 	<h1 class="jep-title">
 		<span class="dashicons dashicons-chart-line"></span>
-		<?php esc_html_e( 'Qualidade / Fontes', 'jep-automacao' ); ?>
+		<?php esc_html_e( 'Qualidade / Fontes Sugeridas', 'jep-automacao' ); ?>
 	</h1>
 
 	<!-- Source Discovery -->
 	<div class="jep-section">
-		<h2><?php esc_html_e( 'Descoberta de Fontes', 'jep-automacao' ); ?></h2>
-		<p class="description"><?php esc_html_e( 'Descobre automaticamente fontes confiaveis de informacao para alimentar o pipeline de conteudo.', 'jep-automacao' ); ?></p>
+		<h2><?php esc_html_e( 'Fontes RSS Sugeridas pela IA', 'jep-automacao' ); ?></h2>
+		<p class="description"><?php esc_html_e( 'A IA analisa os dominios dos itens RSS processados e sugere novos veiculos jornalisticos relevantes. Execute para buscar novas sugestoes ou aguarde o cron diario das 03h.', 'jep-automacao' ); ?></p>
 
 		<form method="post" style="margin-bottom:15px">
 			<?php wp_nonce_field( 'jep_quality_nonce' ); ?>
@@ -52,67 +59,76 @@ $eval_summary = $evaluator->get_summary();
 			</button>
 		</form>
 
-		<?php if ( ! empty( $sources ) ) : ?>
+		<?php if ( ! empty( $suggestions ) ) : ?>
 		<table class="wp-list-table widefat fixed striped">
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Fonte', 'jep-automacao' ); ?></th>
-					<th width="15%"><?php esc_html_e( 'Tipo', 'jep-automacao' ); ?></th>
-					<th width="15%"><?php esc_html_e( 'Territorio', 'jep-automacao' ); ?></th>
-					<th width="10%"><?php esc_html_e( 'Score', 'jep-automacao' ); ?></th>
-					<th width="12%"><?php esc_html_e( 'Status', 'jep-automacao' ); ?></th>
-					<th width="15%"><?php esc_html_e( 'Descoberta em', 'jep-automacao' ); ?></th>
+					<th width="12%"><?php esc_html_e( 'Tipo', 'jep-automacao' ); ?></th>
+					<th width="10%"><?php esc_html_e( 'Regiao', 'jep-automacao' ); ?></th>
+					<th><?php esc_html_e( 'Justificativa', 'jep-automacao' ); ?></th>
+					<th width="15%"><?php esc_html_e( 'Feed URL', 'jep-automacao' ); ?></th>
+					<th width="18%"><?php esc_html_e( 'Acoes', 'jep-automacao' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
-				<?php foreach ( $sources as $source ) : ?>
+				<?php foreach ( $suggestions as $src ) : ?>
 				<tr>
 					<td>
-						<strong><?php echo esc_html( $source['name'] ); ?></strong><br>
-						<a href="<?php echo esc_url( $source['url'] ); ?>" target="_blank" class="description">
-							<?php echo esc_html( $source['url'] ); ?>
+						<strong><?php echo esc_html( $src['name'] ); ?></strong><br>
+						<a href="<?php echo esc_url( $src['url'] ); ?>" target="_blank" class="description">
+							<?php echo esc_html( $src['url'] ); ?>
 						</a>
 					</td>
-					<td><code><?php echo esc_html( $source['type'] ); ?></code></td>
-					<td><?php echo esc_html( $source['territory'] ?: '—' ); ?></td>
+					<td><code><?php echo esc_html( $src['type'] ); ?></code></td>
+					<td><?php echo esc_html( $src['region'] ?: '—' ); ?></td>
+					<td><small><?php echo esc_html( wp_trim_words( $src['justification'], 20 ) ); ?></small></td>
 					<td>
-						<strong style="color:<?php echo (float) $source['reliability_score'] >= 0.7 ? '#2ecc71' : '#e67e22'; ?>">
-							<?php echo esc_html( number_format( (float) $source['reliability_score'], 2 ) ); ?>
-						</strong>
+						<?php if ( ! empty( $src['feed_url'] ) ) : ?>
+							<a href="<?php echo esc_url( $src['feed_url'] ); ?>" target="_blank" class="description">
+								<small><?php echo esc_html( $src['feed_url'] ); ?></small>
+							</a>
+						<?php else : ?>
+							<span class="description">—</span>
+						<?php endif; ?>
 					</td>
 					<td>
-						<span class="jep-badge jep-badge--<?php echo 'active' === $source['status'] ? 'success' : 'warning'; ?>">
-							<?php echo esc_html( $source['status'] ); ?>
-						</span>
+						<form method="post" style="display:inline">
+							<?php wp_nonce_field( 'jep_quality_nonce' ); ?>
+							<input type="hidden" name="jep_quality_action" value="approve_source">
+							<input type="hidden" name="source_id" value="<?php echo absint( $src['id'] ); ?>">
+							<button type="submit" class="button button-small button-primary">
+								<?php esc_html_e( 'Aprovar', 'jep-automacao' ); ?>
+							</button>
+						</form>
+						<form method="post" style="display:inline;margin-left:4px">
+							<?php wp_nonce_field( 'jep_quality_nonce' ); ?>
+							<input type="hidden" name="jep_quality_action" value="reject_source">
+							<input type="hidden" name="source_id" value="<?php echo absint( $src['id'] ); ?>">
+							<button type="submit" class="button button-small">
+								<?php esc_html_e( 'Rejeitar', 'jep-automacao' ); ?>
+							</button>
+						</form>
 					</td>
-					<td><?php echo esc_html( wp_date( 'd/m/Y', strtotime( $source['created_at'] ) ) ); ?></td>
 				</tr>
 				<?php endforeach; ?>
 			</tbody>
 		</table>
 		<?php else : ?>
-			<p class="description"><?php esc_html_e( 'Nenhuma fonte descoberta ainda.', 'jep-automacao' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Nenhuma sugestao de fonte pendente. Execute a descoberta acima ou aguarde o cron das 03h.', 'jep-automacao' ); ?></p>
 		<?php endif; ?>
 	</div>
 
 	<!-- Prompt Evaluator -->
 	<div class="jep-section">
-		<h2><?php esc_html_e( 'Avaliacao de Qualidade de Prompts', 'jep-automacao' ); ?></h2>
-		<p class="description"><?php esc_html_e( 'Avalia a qualidade das respostas dos LLMs para otimizar prompts ao longo do tempo.', 'jep-automacao' ); ?></p>
+		<h2><?php esc_html_e( 'Qualidade de Prompts — Ultimos 30 dias', 'jep-automacao' ); ?></h2>
+		<p class="description"><?php esc_html_e( 'Score medio por tipo de prompt. A avaliacao ocorre automaticamente a cada 5 chamadas LLM.', 'jep-automacao' ); ?></p>
 
-		<form method="post" style="margin-bottom:15px">
-			<?php wp_nonce_field( 'jep_quality_nonce' ); ?>
-			<input type="hidden" name="jep_quality_action" value="run_evaluation">
-			<button type="submit" class="button button-secondary">
-				<span class="dashicons dashicons-chart-bar"></span>
-				<?php esc_html_e( 'Avaliar prompts recentes', 'jep-automacao' ); ?>
-			</button>
-		</form>
-
-		<?php if ( ! empty( $eval_summary ) ) : ?>
+		<?php if ( ! empty( $avg_scores ) ) : ?>
 		<div class="jep-cards">
-			<?php foreach ( $eval_summary as $type => $data ) : ?>
-			<div class="jep-card">
+			<?php foreach ( $avg_scores as $type => $data ) : ?>
+			<?php $score = $data['avg_score_total']; ?>
+			<div class="jep-card jep-card--<?php echo $score >= 7 ? 'success' : ( $score >= 5 ? 'info' : 'warning' ); ?>">
 				<span class="dashicons dashicons-admin-generic"></span>
 				<div>
 					<strong><?php echo esc_html( $type ); ?></strong>
@@ -120,18 +136,28 @@ $eval_summary = $evaluator->get_summary();
 						<?php
 						printf(
 							/* translators: 1: score, 2: total */
-							esc_html__( 'Score medio: %1$s (%2$d amostras)', 'jep-automacao' ),
-							esc_html( number_format( (float) $data['avg_score'], 2 ) ),
-							(int) $data['total']
+							esc_html__( 'Score medio: %1$.1f/10 (%2$d amostras)', 'jep-automacao' ),
+							(float) $score,
+							(int) $data['total_evaluations']
 						);
 						?>
 					</span>
+					<small style="color:#888">
+						<?php
+						printf(
+							'Clareza: %s | Tom: %s | SEO: %s',
+							esc_html( $data['avg_clareza'] ),
+							esc_html( $data['avg_tom'] ),
+							esc_html( $data['avg_seo'] )
+						);
+						?>
+					</small>
 				</div>
 			</div>
 			<?php endforeach; ?>
 		</div>
 		<?php else : ?>
-			<p class="description"><?php esc_html_e( 'Nenhuma avaliacao disponivel ainda. Execute o pipeline de conteudo primeiro.', 'jep-automacao' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Nenhuma avaliacao disponivel ainda. Execute o pipeline de conteudo para gerar amostras.', 'jep-automacao' ); ?></p>
 		<?php endif; ?>
 	</div>
 </div>

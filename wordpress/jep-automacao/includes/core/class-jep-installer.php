@@ -21,7 +21,7 @@ class JEP_Installer {
 	 *
 	 * @var string
 	 */
-	const DB_VERSION = '2.0.0';
+	const DB_VERSION = '2.0.1';
 
 	/**
 	 * Nome da opcao que armazena a versao do DB instalado.
@@ -39,6 +39,7 @@ class JEP_Installer {
 	 * Cria tabelas, inicializa opcoes, faz seed e agenda crons.
 	 */
 	public static function activate() {
+		self::migrate_llm_usage_columns();
 		self::create_tables();
 		self::set_default_options();
 		self::seed_default_feeds();
@@ -63,10 +64,56 @@ class JEP_Installer {
 	public static function maybe_upgrade() {
 		$installed_version = get_option( self::DB_VERSION_OPTION, '0.0.0' );
 		if ( version_compare( $installed_version, self::DB_VERSION, '<' ) ) {
+			self::migrate_llm_usage_columns();
 			self::create_tables();
 			self::set_default_options();
 			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 		}
+	}
+
+	/**
+	 * Renomeia colunas legadas da tabela jep_llm_usage para os nomes usados pelo codigo v2.
+	 *
+	 * tokens_in  -> input_tokens
+	 * tokens_out -> output_tokens
+	 * cost_usd   -> estimated_cost_usd
+	 * (adiciona)    latency_ms
+	 *
+	 * @since 2.0.1
+	 * @return void
+	 */
+	private static function migrate_llm_usage_columns() {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'jep_llm_usage';
+
+		// Check if old column name exists.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$has_tokens_in = $wpdb->get_var(
+			"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+			 WHERE TABLE_SCHEMA = DATABASE()
+			   AND TABLE_NAME   = '{$table}'
+			   AND COLUMN_NAME  = 'tokens_in'"
+		);
+
+		if ( $has_tokens_in ) {
+			$wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `tokens_in`  `input_tokens`       INT(11) NOT NULL DEFAULT 0" );
+			$wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `tokens_out` `output_tokens`      INT(11) NOT NULL DEFAULT 0" );
+			$wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `cost_usd`   `estimated_cost_usd` DECIMAL(10,8) NOT NULL DEFAULT 0.00000000" );
+		}
+
+		// Add latency_ms if missing.
+		$has_latency = $wpdb->get_var(
+			"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+			 WHERE TABLE_SCHEMA = DATABASE()
+			   AND TABLE_NAME   = '{$table}'
+			   AND COLUMN_NAME  = 'latency_ms'"
+		);
+
+		if ( ! $has_latency ) {
+			$wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN `latency_ms` INT(11) NOT NULL DEFAULT 0 AFTER `output_tokens`" );
+		}
+		// phpcs:enable
 	}
 
 	// -------------------------------------------------------------------------
@@ -260,13 +307,14 @@ class JEP_Installer {
 		// 9. wp_jep_llm_usage
 		// ------------------------------------------------------------------
 		$sql_llm_usage = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}jep_llm_usage (
-			id          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			provider_id BIGINT(20) UNSIGNED          DEFAULT NULL,
-			prompt_type VARCHAR(100)        NOT NULL DEFAULT '',
-			tokens_in   INT(11)             NOT NULL DEFAULT 0,
-			tokens_out  INT(11)             NOT NULL DEFAULT 0,
-			cost_usd    DECIMAL(10,6)       NOT NULL DEFAULT 0.000000,
-			created_at  DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			id                  BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			provider_id         BIGINT(20) UNSIGNED          DEFAULT NULL,
+			prompt_type         VARCHAR(100)        NOT NULL DEFAULT '',
+			input_tokens        INT(11)             NOT NULL DEFAULT 0,
+			output_tokens       INT(11)             NOT NULL DEFAULT 0,
+			latency_ms          INT(11)             NOT NULL DEFAULT 0,
+			estimated_cost_usd  DECIMAL(10,8)       NOT NULL DEFAULT 0.00000000,
+			created_at          DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY idx_provider_id (provider_id),
 			KEY idx_prompt_type (prompt_type),
