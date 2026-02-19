@@ -11,6 +11,7 @@ $settings = jep_automacao()->settings();
 $saved    = false;
 
 // Save settings on POST.
+<<<<<<< HEAD
 if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'] )
 	&& wp_verify_nonce( sanitize_key( $_POST['jep_settings_nonce'] ), 'jep_save_settings' )
 	&& current_user_can( 'manage_options' )
@@ -45,6 +46,44 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 	}
 
 	// Checkboxes / toggles.
+=======
+if ( 'POST' === $_SERVER['REQUEST_METHOD']
+	&& isset( $_POST['jep_settings_nonce'] )
+	&& wp_verify_nonce( sanitize_key( $_POST['jep_settings_nonce'] ), 'jep_save_settings' )
+	&& current_user_can( 'manage_options' )
+) {
+	$text_fields = array(
+		'telegram_bot_token',
+		'telegram_editor_chat_id',
+		'telegram_channel_id',
+		'instagram_account_id',
+		'facebook_page_access_token',
+		'image_badge_text',
+		'ai_image_provider',
+		'openai_api_key',
+		'cron_daily_time',
+		'cron_cold_time',
+		'cron_research_time',
+		'cron_discovery_time',
+		'cron_summary_time',
+	);
+	foreach ( $text_fields as $key ) {
+		if ( isset( $_POST[ 'jep_' . $key ] ) ) {
+			$settings->set( $key, sanitize_text_field( wp_unslash( $_POST[ 'jep_' . $key ] ) ) );
+		}
+	}
+
+	if ( isset( $_POST['jep_instagram_caption_template'] ) ) {
+		$settings->set( 'instagram_caption_template', sanitize_textarea_field( wp_unslash( $_POST['jep_instagram_caption_template'] ) ) );
+	}
+	if ( isset( $_POST['jep_image_logo_url'] ) ) {
+		$settings->set( 'image_logo_url', esc_url_raw( wp_unslash( $_POST['jep_image_logo_url'] ) ) );
+	}
+	if ( isset( $_POST['jep_image_accent_color'] ) ) {
+		$settings->set( 'image_accent_color', sanitize_hex_color( wp_unslash( $_POST['jep_image_accent_color'] ) ) );
+	}
+
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 	$toggles = array(
 		'instagram_enabled',
 		'instagram_caption_approval',
@@ -69,13 +108,23 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 	</h1>
 
 	<?php if ( $saved ) : ?>
+<<<<<<< HEAD
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Configuracoes salvas.', 'jep-automacao' ); ?></p></div>
+=======
+		<div class="notice notice-success is-dismissible">
+			<p><?php esc_html_e( 'Configuracoes salvas.', 'jep-automacao' ); ?></p>
+		</div>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 	<?php endif; ?>
 
 	<form method="post">
 		<?php wp_nonce_field( 'jep_save_settings', 'jep_settings_nonce' ); ?>
 
+<<<<<<< HEAD
 		<!-- ===================== TELEGRAM ===================== -->
+=======
+		<!-- ===== TELEGRAM ===== -->
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 		<h2><?php esc_html_e( 'Telegram', 'jep-automacao' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
@@ -84,7 +133,11 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 					<input type="text" id="jep_telegram_bot_token" name="jep_telegram_bot_token"
 						value="<?php echo esc_attr( $settings->get_telegram_bot_token() ); ?>"
 						class="regular-text" placeholder="123456:ABCdef...">
+<<<<<<< HEAD
 					<p class="description"><?php esc_html_e( 'Token do bot obtido via @BotFather.', 'jep-automacao' ); ?></p>
+=======
+					<p class="description"><?php esc_html_e( 'Token obtido via @BotFather.', 'jep-automacao' ); ?></p>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 				</td>
 			</tr>
 			<tr>
@@ -93,7 +146,11 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 					<input type="text" id="jep_telegram_editor_chat_id" name="jep_telegram_editor_chat_id"
 						value="<?php echo esc_attr( $settings->get_telegram_editor_chat_id() ); ?>"
 						class="regular-text" placeholder="-100123456789">
+<<<<<<< HEAD
 					<p class="description"><?php esc_html_e( 'ID do chat do editor (ou grupo) para onde enviar aprovacoes.', 'jep-automacao' ); ?></p>
+=======
+					<p class="description"><?php esc_html_e( 'Chat/grupo do editor para receber aprovacoes.', 'jep-automacao' ); ?></p>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 				</td>
 			</tr>
 			<tr>
@@ -102,6 +159,7 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 					<input type="text" id="jep_telegram_channel_id" name="jep_telegram_channel_id"
 						value="<?php echo esc_attr( $settings->get_telegram_channel_id() ); ?>"
 						class="regular-text" placeholder="@seucanalaqui">
+<<<<<<< HEAD
 					<p class="description"><?php esc_html_e( 'Canal do Telegram onde os posts aprovados serao publicados.', 'jep-automacao' ); ?></p>
 				</td>
 			</tr>
@@ -110,11 +168,24 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 				<td>
 					<code><?php echo esc_html( rest_url( 'jep/v1/telegram-webhook' ) ); ?></code>
 					<p class="description"><?php esc_html_e( 'Configure este URL como webhook do bot no Telegram.', 'jep-automacao' ); ?></p>
+=======
+				</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'URL do Webhook', 'jep-automacao' ); ?></th>
+				<td>
+					<code><?php echo esc_html( rest_url( 'jep/v1/telegram-webhook' ) ); ?></code>
+					<p class="description"><?php esc_html_e( 'Registre este URL como webhook do bot via API do Telegram.', 'jep-automacao' ); ?></p>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 				</td>
 			</tr>
 		</table>
 
+<<<<<<< HEAD
 		<!-- ===================== INSTAGRAM ===================== -->
+=======
+		<!-- ===== INSTAGRAM ===== -->
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 		<h2><?php esc_html_e( 'Instagram', 'jep-automacao' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
@@ -141,7 +212,11 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 					<input type="text" id="jep_facebook_page_access_token" name="jep_facebook_page_access_token"
 						value="<?php echo esc_attr( $settings->get_facebook_page_access_token() ); ?>"
 						class="large-text">
+<<<<<<< HEAD
 					<p class="description"><?php esc_html_e( 'Long-lived Page Token com permissoes instagram_basic e instagram_content_publish.', 'jep-automacao' ); ?></p>
+=======
+					<p class="description"><?php esc_html_e( 'Long-lived token com permissoes instagram_basic + instagram_content_publish.', 'jep-automacao' ); ?></p>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 				</td>
 			</tr>
 			<tr>
@@ -164,7 +239,11 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 			</tr>
 		</table>
 
+<<<<<<< HEAD
 		<!-- ===================== IMAGENS ===================== -->
+=======
+		<!-- ===== IMAGENS ===== -->
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 		<h2><?php esc_html_e( 'Imagens', 'jep-automacao' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
@@ -204,12 +283,17 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 				<th><label for="jep_ai_image_provider"><?php esc_html_e( 'Provider de Imagem IA', 'jep-automacao' ); ?></label></th>
 				<td>
 					<select id="jep_ai_image_provider" name="jep_ai_image_provider">
+<<<<<<< HEAD
 						<option value="pollinations" <?php selected( $settings->get_ai_image_provider(), 'pollinations' ); ?>>
 							Pollinations.ai (gratuito)
 						</option>
 						<option value="openai" <?php selected( $settings->get_ai_image_provider(), 'openai' ); ?>>
 							OpenAI DALL-E (pago)
 						</option>
+=======
+						<option value="pollinations" <?php selected( $settings->get_ai_image_provider(), 'pollinations' ); ?>>Pollinations.ai (gratuito)</option>
+						<option value="openai" <?php selected( $settings->get_ai_image_provider(), 'openai' ); ?>>OpenAI DALL-E (pago)</option>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 					</select>
 				</td>
 			</tr>
@@ -219,21 +303,37 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 					<input type="text" id="jep_openai_api_key" name="jep_openai_api_key"
 						value="<?php echo esc_attr( $settings->get_openai_api_key() ); ?>"
 						class="large-text" placeholder="sk-...">
+<<<<<<< HEAD
 					<p class="description"><?php esc_html_e( 'Necessario apenas se o provider de imagem for OpenAI.', 'jep-automacao' ); ?></p>
+=======
+					<p class="description"><?php esc_html_e( 'Necessario apenas se o provider for OpenAI.', 'jep-automacao' ); ?></p>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 				</td>
 			</tr>
 		</table>
 
+<<<<<<< HEAD
 		<!-- ===================== AGENDAMENTO ===================== -->
+=======
+		<!-- ===== AGENDAMENTO ===== -->
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 		<h2><?php esc_html_e( 'Agendamento de Crons', 'jep-automacao' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<?php
 			$crons = array(
+<<<<<<< HEAD
 				'daily'     => array( 'label' => __( 'Conteudo Diario', 'jep-automacao' ),     'desc' => __( 'Horario (HH:MM)', 'jep-automacao' ) ),
 				'cold'      => array( 'label' => __( 'Conteudo Frio', 'jep-automacao' ),       'desc' => __( 'Horario (HH:MM) — seg/qua/sex', 'jep-automacao' ) ),
 				'research'  => array( 'label' => __( 'Pesquisa de Pautas', 'jep-automacao' ),  'desc' => __( 'Horario (HH:MM) — toda segunda', 'jep-automacao' ) ),
 				'discovery' => array( 'label' => __( 'Descoberta de Fontes', 'jep-automacao' ),'desc' => __( 'Horario (HH:MM) — diario', 'jep-automacao' ) ),
 				'summary'   => array( 'label' => __( 'Resumo Semanal', 'jep-automacao' ),      'desc' => __( 'Horario (HH:MM) — todo domingo', 'jep-automacao' ) ),
+=======
+				'daily'     => array( 'label' => __( 'Conteudo Diario', 'jep-automacao' ),     'desc' => __( 'Horario HH:MM — diario', 'jep-automacao' ) ),
+				'cold'      => array( 'label' => __( 'Conteudo Frio', 'jep-automacao' ),       'desc' => __( 'Horario HH:MM — seg/qua/sex', 'jep-automacao' ) ),
+				'research'  => array( 'label' => __( 'Pesquisa de Pautas', 'jep-automacao' ),  'desc' => __( 'Horario HH:MM — toda segunda', 'jep-automacao' ) ),
+				'discovery' => array( 'label' => __( 'Descoberta de Fontes', 'jep-automacao' ),'desc' => __( 'Horario HH:MM — diario', 'jep-automacao' ) ),
+				'summary'   => array( 'label' => __( 'Resumo Semanal', 'jep-automacao' ),      'desc' => __( 'Horario HH:MM — todo domingo', 'jep-automacao' ) ),
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 			);
 			foreach ( $crons as $key => $cron ) :
 			?>
@@ -253,13 +353,18 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 			<?php endforeach; ?>
 		</table>
 
+<<<<<<< HEAD
 		<!-- ===================== REST API ===================== -->
+=======
+		<!-- ===== REST API ===== -->
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 		<h2><?php esc_html_e( 'REST API', 'jep-automacao' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
 				<th><?php esc_html_e( 'Token Secreto', 'jep-automacao' ); ?></th>
 				<td>
 					<code><?php echo esc_html( $settings->get_rest_api_secret() ); ?></code>
+<<<<<<< HEAD
 					<p class="description"><?php esc_html_e( 'Use este token no header X-JEP-Token para autenticar chamadas REST.', 'jep-automacao' ); ?></p>
 				</td>
 			</tr>
@@ -267,6 +372,9 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['jep_settings_nonce'
 				<th><?php esc_html_e( 'Webhook Telegram', 'jep-automacao' ); ?></th>
 				<td>
 					<code><?php echo esc_html( rest_url( 'jep/v1/telegram-webhook' ) ); ?></code>
+=======
+					<p class="description"><?php esc_html_e( 'Envie no header X-JEP-Token para autenticar chamadas REST externas.', 'jep-automacao' ); ?></p>
+>>>>>>> 027d1c7 (fix(admin): corrige views do painel para v2 — remove referencias n8n)
 				</td>
 			</tr>
 		</table>

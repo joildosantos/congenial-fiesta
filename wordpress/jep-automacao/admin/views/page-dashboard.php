@@ -16,13 +16,13 @@ $instagram_ok   = $settings->is_instagram_enabled();
 $nonce          = wp_create_nonce( 'jep_admin_nonce' );
 
 $pipelines = array(
-	'cold_content'  => array(
+	'cold_content'   => array(
 		'label' => __( 'Conteudo Frio', 'jep-automacao' ),
 		'desc'  => __( 'Processa a proxima pauta do banco (seg/qua/sex 08h)', 'jep-automacao' ),
 		'icon'  => 'dashicons-edit-page',
 		'opt'   => 'cold',
 	),
-	'daily'         => array(
+	'daily'          => array(
 		'label' => __( 'Conteudo Diario', 'jep-automacao' ),
 		'desc'  => __( 'Busca RSS + reescrita + envio ao Telegram (diario 06h)', 'jep-automacao' ),
 		'icon'  => 'dashicons-rss',
@@ -34,7 +34,7 @@ $pipelines = array(
 		'icon'  => 'dashicons-search',
 		'opt'   => 'research',
 	),
-	'rss_fetch'     => array(
+	'rss_fetch'      => array(
 		'label' => __( 'Buscar RSS Agora', 'jep-automacao' ),
 		'desc'  => __( 'Forca a busca imediata de todos os feeds ativos', 'jep-automacao' ),
 		'icon'  => 'dashicons-update',
@@ -204,9 +204,9 @@ $pipelines = array(
 <script>
 jQuery( document ).ready( function( $ ) {
 	$( '.jep-trigger-btn' ).on( 'click', function() {
-		var $btn      = $( this );
-		var pipeline  = $btn.data( 'pipeline' );
-		var nonce     = $btn.data( 'nonce' );
+		var $btn     = $( this );
+		var pipeline = $btn.data( 'pipeline' );
+		var nonce    = $btn.data( 'nonce' );
 
 		$btn.prop( 'disabled', true ).text( '<?php echo esc_js( __( 'Executando...', 'jep-automacao' ) ); ?>' );
 
