@@ -31,20 +31,25 @@ class JEP_Automacao {
 	/**
 	 * Retorna a instancia singleton.
 	 *
+	 * Atribui self::$instance ANTES de chamar load_modules() para evitar
+	 * recursao infinita quando modulos chamam jep_automacao() durante
+	 * o proprio processo de inicializacao.
+	 *
 	 * @return JEP_Automacao
 	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
+			self::$instance->load_modules();
 		}
 		return self::$instance;
 	}
 
 	/**
-	 * Construtor privado. Carrega modulos e registra hooks iniciais.
+	 * Construtor privado. Registra apenas hooks basicos; modulos sao
+	 * carregados em instance() apos a atribuicao do singleton.
 	 */
 	private function __construct() {
-		$this->load_modules();
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 	}
 
