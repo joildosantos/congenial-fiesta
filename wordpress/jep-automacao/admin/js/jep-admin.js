@@ -184,4 +184,80 @@
 		}
 	});
 
+	/**
+	 * Testar provedor LLM.
+	 */
+	$(document).on('click', '.jep-test-llm', function () {
+		var $btn      = $(this);
+		var providerId = $btn.data('id');
+		var $feedback = $btn.siblings('.jep-llm-test-result');
+
+		if (!$feedback.length) {
+			$feedback = $('<span class="jep-llm-test-result"></span>').insertAfter($btn);
+		}
+
+		$btn.prop('disabled', true).prepend('<span class="jep-spinner"></span> ');
+
+		$.ajax({
+			url: jepAdmin.ajaxUrl,
+			method: 'POST',
+			data: {
+				action:      'jep_test_llm_provider',
+				nonce:       jepAdmin.nonce,
+				provider_id: providerId,
+			},
+			success: function (response) {
+				if (response.success) {
+					var msg = response.data.message || 'OK';
+					if (response.data.latency_ms) {
+						msg += ' (' + response.data.latency_ms + ' ms)';
+					}
+					showFeedback($feedback, msg, 'success');
+				} else {
+					showFeedback($feedback, response.data.message || 'Erro.', 'error');
+				}
+			},
+			error: function () {
+				showFeedback($feedback, 'Erro de comunicacao com o servidor.', 'error');
+			},
+			complete: function () {
+				$btn.prop('disabled', false).find('.jep-spinner').remove();
+			},
+		});
+	});
+
+	/**
+	 * Verificar conexao com o bot Telegram.
+	 */
+	$('#jep-telegram-get-me').on('click', function () {
+		var $btn    = $(this);
+		var $result = $('#jep-telegram-me-result');
+
+		$btn.prop('disabled', true).prepend('<span class="jep-spinner"></span> ');
+
+		$.ajax({
+			url: jepAdmin.ajaxUrl,
+			method: 'POST',
+			data: {
+				action: 'jep_telegram_bot_info',
+				nonce:  jepAdmin.nonce,
+			},
+			success: function (response) {
+				if (response.success) {
+					var bot = response.data;
+					var msg = '@' + (bot.username || '?') + ' — ' + (bot.first_name || '');
+					showFeedback($result, msg, 'success');
+				} else {
+					showFeedback($result, response.data.message || 'Erro.', 'error');
+				}
+			},
+			error: function () {
+				showFeedback($result, 'Erro de comunicacao com o servidor.', 'error');
+			},
+			complete: function () {
+				$btn.prop('disabled', false).find('.jep-spinner').remove();
+			},
+		});
+	});
+
 }(jQuery));
