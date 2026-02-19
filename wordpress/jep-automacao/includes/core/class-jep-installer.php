@@ -21,7 +21,7 @@ class JEP_Installer {
 	 *
 	 * @var string
 	 */
-	const DB_VERSION = '2.0.2';
+	const DB_VERSION = '2.0.3';
 
 	/**
 	 * Nome da opcao que armazena a versao do DB instalado.
@@ -41,6 +41,7 @@ class JEP_Installer {
 	public static function activate() {
 		self::migrate_llm_usage_columns();
 		self::migrate_rss_feeds_columns();
+		self::migrate_llm_providers_columns();
 		self::create_tables();
 		self::set_default_options();
 		self::seed_default_feeds();
@@ -67,6 +68,7 @@ class JEP_Installer {
 		if ( version_compare( $installed_version, self::DB_VERSION, '<' ) ) {
 			self::migrate_llm_usage_columns();
 			self::migrate_rss_feeds_columns();
+			self::migrate_llm_providers_columns();
 			self::create_tables();
 			self::set_default_options();
 			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
@@ -171,6 +173,34 @@ class JEP_Installer {
 		// phpcs:enable
 	}
 
+	/**
+	 * Migra a tabela jep_llm_providers para o schema v2.
+	 *
+	 * Renomeacoes:
+	 *   active -> is_active
+	 *
+	 * @since 2.0.3
+	 * @return void
+	 */
+	private static function migrate_llm_providers_columns() {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'jep_llm_providers';
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$cols = $wpdb->get_col( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}'" );
+
+		if ( empty( $cols ) ) {
+			return; // Table does not exist yet; create_tables() will handle it.
+		}
+
+		// Rename: active -> is_active.
+		if ( in_array( 'active', $cols, true ) && ! in_array( 'is_active', $cols, true ) ) {
+			$wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `active` `is_active` TINYINT(1) NOT NULL DEFAULT 1" );
+		}
+		// phpcs:enable
+	}
+
 	// -------------------------------------------------------------------------
 	// Criacao de tabelas
 	// -------------------------------------------------------------------------
@@ -216,13 +246,13 @@ class JEP_Installer {
 			priority        INT(11)              NOT NULL DEFAULT 10,
 			monthly_limit   INT(11)              NOT NULL DEFAULT 0,
 			used_this_month INT(11)              NOT NULL DEFAULT 0,
-			active          TINYINT(1)           NOT NULL DEFAULT 1,
+			is_active       TINYINT(1)           NOT NULL DEFAULT 1,
 			last_used       DATETIME                      DEFAULT NULL,
 			created_at      DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY idx_provider_type (provider_type),
 			KEY idx_priority      (priority),
-			KEY idx_active        (active)
+			KEY idx_is_active     (is_active)
 		) {$charset_collate};";
 
 		// ------------------------------------------------------------------
