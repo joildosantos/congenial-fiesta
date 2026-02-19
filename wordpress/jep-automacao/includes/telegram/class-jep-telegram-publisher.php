@@ -99,6 +99,13 @@ class JEP_Telegram_Publisher {
 		$state     = get_transient( $state_key );
 
 		if ( ! empty( $state ) ) {
+			// Photo received while awaiting image replacement — handle separately.
+			if ( isset( $message['photo'] ) && preg_match( '/^awaiting_image_(\d+)$/', $state, $m ) ) {
+				delete_transient( $state_key );
+				$this->handle_image_replacement( (int) $m[1], $message );
+				return;
+			}
+
 			$this->handle_conversation_reply( $state, $message );
 			return;
 		}
@@ -836,14 +843,17 @@ class JEP_Telegram_Publisher {
 		// edit_image_{post_id}
 		// ----------------------------------------------------------------
 		if ( preg_match( '/^edit_image_(\d+)$/', $callback_data, $matches ) ) {
-			$post_id = (int) $matches[1];
+			$post_id   = (int) $matches[1];
+			$state_key = 'jep_tg_state_' . $from_id;
+
+			set_transient( $state_key, 'awaiting_image_' . $post_id, 10 * MINUTE_IN_SECONDS );
 
 			$this->bot->answer_callback_query( $callback_id );
 			$this->bot->send_to_editor(
 				"🖼️ *Alterar imagem destacada*\n\n" .
-				"Envie a nova imagem como uma foto nesta conversa.\n" .
-				"A imagem será automaticamente associada ao post ID *{$post_id}*.\n\n" .
-				"_Funcionalidade de troca automática em breve._"
+				"Envie a nova foto nesta conversa.\n" .
+				"Ela será automaticamente definida como imagem destacada do post ID *{$post_id}*.\n\n" .
+				"Digite /cancelar para abortar."
 			);
 			return;
 		}
@@ -939,6 +949,89 @@ class JEP_Telegram_Publisher {
 	// -------------------------------------------------------------------------
 	// Private helpers
 	// -------------------------------------------------------------------------
+
+	/**
+	 * Downloads a Telegram photo and sets it as the featured image of a post.
+	 *
+	 * Called when the editor sends a photo while the conversation state is
+	 * `awaiting_image_{post_id}`. Sideloads the highest-resolution variant of the
+	 * photo into the WordPress media library, attaches it to the post, and shows
+	 * the edit menu again.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @param int   $post_id The ID of the WordPress post whose thumbnail should be replaced.
+	 * @param array $message The Telegram message object containing the 'photo' array.
+	 *
+	 * @return void
+	 */
+	private function handle_image_replacement( $post_id, $message ) {
+		$post = get_post( $post_id );
+
+		if ( ! $post ) {
+			$this->bot->send_to_editor( '❌ Post não encontrado.' );
+			return;
+		}
+
+		$this->bot->send_to_editor( '🖼️ Foto recebida, salvando como imagem destacada…' );
+
+		// Pick the highest-resolution photo (Telegram returns ascending array).
+		$photos  = $message['photo'];
+		$largest = end( $photos );
+		$file_id = $largest['file_id'];
+
+		// 1. Resolve the public file path via getFile.
+		try {
+			$file_info = $this->bot->api_call( 'getFile', [ 'file_id' => $file_id ] );
+		} catch ( Exception $e ) {
+			$this->bot->send_to_editor( '❌ Não foi possível obter o arquivo da foto.' );
+			jep_automacao()->logger()->error(
+				sprintf( '[TelegramPublisher] getFile failed for image replacement (post %d): %s', $post_id, $e->getMessage() )
+			);
+			return;
+		}
+
+		$file_path    = isset( $file_info['file_path'] ) ? $file_info['file_path'] : '';
+		$token        = jep_automacao()->settings()->get_telegram_bot_token();
+		$download_url = sprintf( 'https://api.telegram.org/file/bot%s/%s', $token, $file_path );
+
+		// 2. Sideload the photo into the WP media library attached to the post.
+		if ( ! function_exists( 'media_sideload_image' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+		}
+
+		$attachment_id = media_sideload_image( $download_url, $post_id, $post->post_title, 'id' );
+
+		if ( is_wp_error( $attachment_id ) ) {
+			$this->bot->send_to_editor(
+				'❌ Erro ao salvar a foto na biblioteca: ' . $attachment_id->get_error_message()
+			);
+			return;
+		}
+
+		// 3. Set as the post featured image.
+		set_post_thumbnail( $post_id, $attachment_id );
+
+		jep_automacao()->logger()->info(
+			sprintf(
+				'[TelegramPublisher] Featured image replaced for post %d (attachment %d).',
+				$post_id,
+				$attachment_id
+			)
+		);
+
+		$this->bot->send_to_editor(
+			sprintf(
+				"✅ *Imagem destacada atualizada!*\n\n📝 Post: *%s*",
+				wp_strip_all_tags( $post->post_title )
+			)
+		);
+
+		// Return to the edit menu.
+		$this->send_post_edit_menu( $post_id );
+	}
 
 	/**
 	 * Saves a piece of text to the cold content bank (post-meta driven bank).
