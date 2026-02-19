@@ -79,9 +79,9 @@ class JEP_Automacao {
 		$this->modules['source_discovery'] = new JEP_Source_Discovery();
 		$this->modules['prompt_evaluator'] = new JEP_Prompt_Evaluator();
 
-		// --- Image ---
-		$this->modules['image_gd'] = new JEP_Image_Generator_GD();
-		$this->modules['image_ai'] = new JEP_Image_Generator_AI();
+		// --- Image (static utility classes — loaded via autoloader, no instantiation needed) ---
+		class_exists( 'JEP_Image_GD' );
+		class_exists( 'JEP_Image_AI' );
 
 		// --- API ---
 		$this->modules['rest_api'] = new JEP_Rest_Api();
@@ -150,24 +150,6 @@ class JEP_Automacao {
 	 */
 	public function telegram() {
 		return $this->modules['telegram_bot'];
-	}
-
-	/**
-	 * Retorna o gerador de imagens via GD.
-	 *
-	 * @return JEP_Image_Generator_GD
-	 */
-	public function image_gd() {
-		return $this->modules['image_gd'];
-	}
-
-	/**
-	 * Retorna o gerador de imagens via IA.
-	 *
-	 * @return JEP_Image_Generator_AI
-	 */
-	public function image_ai() {
-		return $this->modules['image_ai'];
 	}
 
 	/**

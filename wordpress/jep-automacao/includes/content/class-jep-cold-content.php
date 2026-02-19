@@ -511,7 +511,7 @@ class JEP_Cold_Content {
 		}
 
 		// 2. AI-generated image.
-		if ( class_exists( 'JEP_Image_Generator_AI' ) ) {
+		if ( class_exists( 'JEP_Image_AI' ) ) {
 			try {
 				$rewriter     = new JEP_Content_Rewriter();
 				$image_prompt = $rewriter->generate_image_prompt(
@@ -519,7 +519,7 @@ class JEP_Cold_Content {
 					$rewritten['excerpt'],
 					$rewritten['categorias_wp']
 				);
-				$ai_image = JEP_Image_Generator_AI::generate( $image_prompt );
+				$ai_image = JEP_Image_AI::generate( $image_prompt );
 				if ( $ai_image ) {
 					return $ai_image;
 				}
@@ -529,9 +529,9 @@ class JEP_Cold_Content {
 		}
 
 		// 3. GD placeholder.
-		if ( class_exists( 'JEP_Image_Generator_GD' ) ) {
+		if ( class_exists( 'JEP_Image_GD' ) ) {
 			try {
-				return JEP_Image_Generator_GD::create_placeholder( $rewritten['titulo_a'] );
+				return JEP_Image_GD::create_placeholder( $rewritten['titulo_a'] );
 			} catch ( Exception $e ) {
 				JEP_Logger::warning( 'Cold Content: placeholder GD falhou — ' . $e->getMessage(), 'cold_content' );
 			}
