@@ -31,7 +31,7 @@ class JEP_Prompt_Evaluator {
 	 * @since 2.0.0
 	 * @var string
 	 */
-	private $table = 'wp_jep_prompt_evaluations';
+	private $table;
 
 	/**
 	 * Sampling rate: evaluate 1 in every N LLM calls.
@@ -71,6 +71,8 @@ class JEP_Prompt_Evaluator {
 	 * @since 2.0.0
 	 */
 	public function __construct() {
+		global $wpdb;
+		$this->table    = $wpdb->prefix . 'jep_prompt_evaluations';
 		$this->settings = jep_automacao()->settings();
 		$this->logger   = jep_automacao()->logger();
 	}

@@ -30,7 +30,7 @@ class JEP_Source_Discovery {
 	 * @since 2.0.0
 	 * @var string
 	 */
-	private $table_feeds = 'wp_jep_rss_feeds';
+	private $table_feeds;
 
 	/**
 	 * Database table: ingestion queue items.
@@ -38,7 +38,7 @@ class JEP_Source_Discovery {
 	 * @since 2.0.0
 	 * @var string
 	 */
-	private $table_queue = 'wp_jep_rss_queue';
+	private $table_queue;
 
 	/**
 	 * Database table: suggested (candidate) feeds awaiting editorial review.
@@ -46,7 +46,7 @@ class JEP_Source_Discovery {
 	 * @since 2.0.0
 	 * @var string
 	 */
-	private $table_suggested = 'wp_jep_suggested_feeds';
+	private $table_suggested;
 
 	/**
 	 * Plugin settings instance.
@@ -70,8 +70,12 @@ class JEP_Source_Discovery {
 	 * @since 2.0.0
 	 */
 	public function __construct() {
-		$this->settings = jep_automacao()->settings();
-		$this->logger   = jep_automacao()->logger();
+		global $wpdb;
+		$this->table_feeds     = $wpdb->prefix . 'jep_rss_feeds';
+		$this->table_queue     = $wpdb->prefix . 'jep_rss_queue';
+		$this->table_suggested = $wpdb->prefix . 'jep_suggested_feeds';
+		$this->settings        = jep_automacao()->settings();
+		$this->logger          = jep_automacao()->logger();
 	}
 
 	// -------------------------------------------------------------------------
