@@ -126,7 +126,7 @@ class JEP_Rest_Api {
      */
     public function verify_secret_token( WP_REST_Request $request ) {
         $token    = $request->get_header( 'X-JEP-Token' );
-        $expected = JEP_Settings::get( 'rest_api_secret' );
+        $expected = jep_automacao()->settings()->get_rest_api_secret();
 
         if ( empty( $expected ) ) {
             return new WP_Error(
@@ -155,7 +155,7 @@ class JEP_Rest_Api {
      */
     public function verify_telegram_webhook( WP_REST_Request $request ) {
         $token    = $request->get_header( 'X-Telegram-Bot-Api-Secret-Token' );
-        $expected = JEP_Settings::get( 'telegram_webhook_secret' );
+        $expected = jep_automacao()->settings()->get_telegram_webhook_secret();
 
         if ( empty( $expected ) ) {
             // If no secret is configured, allow through (development mode).
@@ -200,23 +200,24 @@ class JEP_Rest_Api {
      * @return WP_REST_Response
      */
     public function get_status( WP_REST_Request $request ) {
-        $settings = JEP_Settings::get_all();
+        $settings_obj = jep_automacao()->settings();
+        $settings     = $settings_obj ? $settings_obj->get_all() : [];
 
         $modules = [
             'telegram'         => [
                 'configured' => ! empty( $settings['telegram_bot_token'] ),
             ],
             'llm'              => [
-                'configured' => class_exists( 'JEP_LLM_Manager' ) && JEP_LLM_Manager::has_active_provider(),
+                'configured' => class_exists( 'JEP_LLM_Manager' ) && ! empty( ( new JEP_LLM_Manager() )->get_active_providers() ),
             ],
             'rss'              => [
-                'configured' => class_exists( 'JEP_RSS_Manager' ) && JEP_RSS_Manager::has_active_feeds(),
+                'configured' => class_exists( 'JEP_RSS_Manager' ) && ! empty( ( new JEP_RSS_Manager() )->get_feeds( true ) ),
             ],
             'instagram'        => [
                 'configured' => ! empty( $settings['instagram_enabled'] ) && ! empty( $settings['instagram_account_id'] ),
             ],
             'image_generation' => [
-                'configured' => ! empty( $settings['enable_ai_images'] ),
+                'configured' => ! empty( $settings['ai_images_enabled'] ),
             ],
             'source_discovery' => [
                 'configured' => class_exists( 'JEP_Source_Discovery' ),
@@ -230,7 +231,7 @@ class JEP_Rest_Api {
 
         $cron_status = [];
         if ( class_exists( 'JEP_Scheduler' ) ) {
-            $cron_status = JEP_Scheduler::get_cron_status();
+            $cron_status = ( new JEP_Scheduler() )->get_cron_status();
         }
 
         $data = [
@@ -263,7 +264,7 @@ class JEP_Rest_Api {
 
         if ( class_exists( 'JEP_Telegram_Publisher' ) ) {
             try {
-                JEP_Telegram_Publisher::handle_update( $update );
+                ( new JEP_Telegram_Publisher() )->handle_update( $update );
             } catch ( Exception $e ) {
                 JEP_Logger::error( 'telegram_webhook', 'Exception while handling update: ' . $e->getMessage(), [
                     'trace' => $e->getTraceAsString(),
@@ -440,7 +441,7 @@ class JEP_Rest_Api {
 
         JEP_Logger::info( 'rest_trigger_workflow', "Manual trigger requested for: {$workflow}" );
 
-        $result = JEP_Scheduler::run_now( $workflow );
+        $result = ( new JEP_Scheduler() )->run_now( $workflow );
 
         return new WP_REST_Response(
             [
