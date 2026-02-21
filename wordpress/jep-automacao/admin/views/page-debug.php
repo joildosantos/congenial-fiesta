@@ -51,29 +51,74 @@ if ( $table_status['jep_llm_providers']['exists'] ) {
 }
 
 // ---- Settings ----
-$settings       = $plugin ? $plugin->settings() : null;
-$llm_enabled    = $settings ? $settings->get( 'enable_llm', false ) : '?';
-$tg_token_raw   = $settings ? $settings->get_telegram_bot_token() : '';
-$tg_token_mask  = $tg_token_raw ? ( substr( $tg_token_raw, 0, 6 ) . '...' . substr( $tg_token_raw, -4 ) ) : '(vazio)';
-$tg_chat        = $settings ? $settings->get( 'telegram_editor_chat_id', '' ) : '?';
+$settings      = $plugin ? $plugin->settings() : null;
+$tg_token_raw  = $settings ? $settings->get_telegram_bot_token() : '';
+$tg_token_mask = $tg_token_raw ? ( substr( $tg_token_raw, 0, 6 ) . '...' . substr( $tg_token_raw, -4 ) ) : '(vazio)';
+$tg_chat       = $settings ? $settings->get( 'telegram_editor_chat_id', '' ) : '?';
+
+// LLM Habilitado = tem ao menos um provider ativo na tabela.
+$llm_enabled = ! empty( $llm_providers ) && count( array_filter( $llm_providers, function ( $p ) {
+	return ! empty( $p['is_active'] );
+} ) ) > 0;
 
 // ---- DB Version ----
 $db_version       = get_option( 'jep_automacao_db_version', '—' );
 $db_version_const = defined( 'JEP_Installer' ) ? '' : ( class_exists( 'JEP_Installer' ) ? JEP_Installer::DB_VERSION : '—' );
 
-// ---- Crons ----
+// ---- Crons — reagendar ANTES de ler o status (post-handler antecipado) ----
+$cron_rescheduled_msg = '';
+if ( isset( $_POST['jep_reschedule'] ) && check_admin_referer( 'jep_reschedule_crons', '_nonce_reschedule' ) ) {
+	JEP_Scheduler::register_schedules();
+	$cron_rescheduled_msg = 'Crons reagendados com sucesso.';
+}
+
+// IMPORTANTE: usar os nomes reais definidos em JEP_Scheduler (com prefixo 'jep_cron_').
 $cron_hooks = array(
-	'jep_daily_content',
-	'jep_cold_content',
-	'jep_topic_research',
-	'jep_source_discovery',
-	'jep_weekly_summary',
+	'jep_cron_daily_content',
+	'jep_cron_cold_content',
+	'jep_cron_topic_research',
+	'jep_cron_source_discovery',
+	'jep_cron_weekly_summary',
 );
 
 $cron_status = array();
 foreach ( $cron_hooks as $hook ) {
 	$next = wp_next_scheduled( $hook );
 	$cron_status[ $hook ] = $next ? wp_date( 'd/m/Y H:i:s', $next ) : 'NAO AGENDADO';
+}
+
+// ---- Teste PHP direto: Telegram ----
+$tg_test_result = null;
+if ( isset( $_POST['jep_test_telegram_php'] ) && check_admin_referer( 'jep_test_telegram_php', '_nonce_tg_test' ) ) {
+	if ( class_exists( 'JEP_Telegram_Bot' ) ) {
+		$bot = new JEP_Telegram_Bot();
+		try {
+			$me = $bot->get_me();
+			if ( is_wp_error( $me ) ) {
+				$tg_test_result = array( 'ok' => false, 'msg' => $me->get_error_message() );
+			} else {
+				$tg_test_result = array( 'ok' => true, 'msg' => '@' . ( $me['username'] ?? '?' ) . ' — ' . ( $me['first_name'] ?? '' ), 'raw' => $me );
+			}
+		} catch ( Exception $e ) {
+			$tg_test_result = array( 'ok' => false, 'msg' => $e->getMessage() );
+		}
+	} else {
+		$tg_test_result = array( 'ok' => false, 'msg' => 'Classe JEP_Telegram_Bot nao carregada.' );
+	}
+}
+
+// ---- Teste PHP direto: LLM ----
+$llm_test_result = null;
+if ( isset( $_POST['jep_test_llm_php'] ) && check_admin_referer( 'jep_test_llm_php', '_nonce_llm_test' ) ) {
+	$test_provider_id = absint( $_POST['jep_test_provider_id'] ?? 0 );
+	if ( $test_provider_id && class_exists( 'JEP_LLM_Manager' ) ) {
+		$llm_mgr         = new JEP_LLM_Manager();
+		$llm_test_result = $llm_mgr->test_provider( $test_provider_id );
+	} elseif ( ! $test_provider_id ) {
+		$llm_test_result = array( 'success' => false, 'response' => 'Selecione um provedor.', 'latency_ms' => 0 );
+	} else {
+		$llm_test_result = array( 'success' => false, 'response' => 'Classe JEP_LLM_Manager nao carregada.', 'latency_ms' => 0 );
+	}
 }
 
 // ---- Recent Logs ----
@@ -192,25 +237,62 @@ $wp_debug_log   = defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG;
 		<?php endforeach; ?>
 		</tbody>
 	</table>
-	<?php $unscheduled = array_filter( $cron_status, fn( $v ) => 'NAO AGENDADO' === $v ); ?>
-	<?php if ( ! empty( $unscheduled ) ) : ?>
-		<p>
-			<form method="post" style="display:inline">
-				<?php wp_nonce_field( 'jep_reschedule_crons', '_nonce_reschedule' ); ?>
-				<button type="submit" name="jep_reschedule" class="button">Reagendar Crons</button>
-			</form>
-		</p>
-		<?php
-		if ( isset( $_POST['jep_reschedule'] ) && check_admin_referer( 'jep_reschedule_crons', '_nonce_reschedule' ) ) {
-			JEP_Scheduler::register_schedules();
-			echo '<div class="notice notice-success inline"><p>Crons reagendados.</p></div>';
-		}
-		?>
+	<?php if ( $cron_rescheduled_msg ) : ?>
+		<div class="notice notice-success inline"><p><?php echo esc_html( $cron_rescheduled_msg ); ?></p></div>
+	<?php endif; ?>
+	<p>
+		<form method="post" style="display:inline">
+			<?php wp_nonce_field( 'jep_reschedule_crons', '_nonce_reschedule' ); ?>
+			<button type="submit" name="jep_reschedule" class="button">Reagendar / Recriar Crons</button>
+		</form>
+	</p>
+
+	<hr>
+
+	<h2>6. Testes Diretos (PHP — sem AJAX)</h2>
+	<p class="description">Use estes testes para verificar conectividade mesmo que os botoes AJAX nao funcionem.</p>
+
+	<!-- Telegram PHP test -->
+	<h3>Telegram getMe</h3>
+	<?php if ( null !== $tg_test_result ) : ?>
+		<?php if ( $tg_test_result['ok'] ) : ?>
+			<div class="notice notice-success inline"><p>✅ <strong><?php echo esc_html( $tg_test_result['msg'] ); ?></strong></p></div>
+		<?php else : ?>
+			<div class="notice notice-error inline"><p>❌ <strong>Erro:</strong> <?php echo esc_html( $tg_test_result['msg'] ); ?></p></div>
+		<?php endif; ?>
+	<?php endif; ?>
+	<form method="post">
+		<?php wp_nonce_field( 'jep_test_telegram_php', '_nonce_tg_test' ); ?>
+		<button type="submit" name="jep_test_telegram_php" class="button">Testar Bot Telegram (PHP direto)</button>
+		<span class="description" style="margin-left:8px">Token: <code><?php echo esc_html( $tg_token_mask ); ?></code></span>
+	</form>
+
+	<!-- LLM PHP test -->
+	<h3 style="margin-top:20px">LLM Provider</h3>
+	<?php if ( null !== $llm_test_result ) : ?>
+		<?php if ( $llm_test_result['success'] ) : ?>
+			<div class="notice notice-success inline"><p>✅ OK (<?php echo esc_html( $llm_test_result['latency_ms'] ); ?>ms) — <?php echo esc_html( $llm_test_result['response'] ); ?></p></div>
+		<?php else : ?>
+			<div class="notice notice-error inline"><p>❌ <strong>Erro:</strong> <?php echo esc_html( $llm_test_result['response'] ); ?></p></div>
+		<?php endif; ?>
+	<?php endif; ?>
+	<?php if ( ! empty( $llm_providers ) ) : ?>
+	<form method="post">
+		<?php wp_nonce_field( 'jep_test_llm_php', '_nonce_llm_test' ); ?>
+		<select name="jep_test_provider_id">
+			<?php foreach ( $llm_providers as $p ) : ?>
+				<option value="<?php echo esc_attr( $p['id'] ); ?>"><?php echo esc_html( $p['name'] . ' (' . $p['provider_type'] . ')' ); ?></option>
+			<?php endforeach; ?>
+		</select>
+		<button type="submit" name="jep_test_llm_php" class="button">Testar LLM (PHP direto)</button>
+	</form>
+	<?php else : ?>
+		<p class="description">⚠ Nenhum provedor cadastrado.</p>
 	<?php endif; ?>
 
 	<hr>
 
-	<h2>6. Logs de Atividade</h2>
+	<h2>7. Logs de Atividade</h2>
 	<p>
 		Info: <strong><?php echo esc_html( $log_counts['info'] ); ?></strong> &nbsp;|&nbsp;
 		Sucesso: <strong><?php echo esc_html( $log_counts['success'] ); ?></strong> &nbsp;|&nbsp;
@@ -255,7 +337,7 @@ $wp_debug_log   = defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG;
 
 	<hr>
 
-	<h2>7. Teste AJAX (ao vivo)</h2>
+	<h2>8. Teste AJAX (ao vivo)</h2>
 	<p>
 		<button class="button" id="jep-debug-test-ajax">Testar AJAX (jep_admin_nonce)</button>
 		<span id="jep-debug-ajax-result" style="margin-left:10px"></span>
@@ -267,7 +349,7 @@ $wp_debug_log   = defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG;
 
 	<hr>
 
-	<h2>8. Informacoes para Suporte</h2>
+	<h2>9. Informacoes para Suporte</h2>
 	<p>Copie e cole o bloco abaixo ao reportar um problema:</p>
 	<textarea readonly rows="12" style="width:100%;font-family:monospace;font-size:12px"><?php
 $info = array(
