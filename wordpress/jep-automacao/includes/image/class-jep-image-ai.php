@@ -41,14 +41,14 @@ class JEP_Image_AI {
 		$settings = self::get_settings();
 
 		if ( empty( $settings['provider'] ) || empty( $settings['api_key'] ) ) {
-			JEP_Logger::warning( 'Image AI: provedor ou chave API não configurados.', 'image' );
+			JEP_Logger::warning( 'image', 'Image AI: provedor ou chave API não configurados.' );
 			return '';
 		}
 
 		try {
 			$image_url = self::call_provider( $prompt, $settings );
 		} catch ( Exception $e ) {
-			JEP_Logger::error( 'Image AI: ' . $e->getMessage(), 'image' );
+			JEP_Logger::error( 'image', 'Image AI: ' . $e->getMessage() );
 			return '';
 		}
 
@@ -59,7 +59,7 @@ class JEP_Image_AI {
 		$attachment_url = self::download_and_import( $image_url, $title ?: $prompt );
 
 		if ( $attachment_url ) {
-			JEP_Logger::info( 'Image AI: imagem gerada e importada — ' . $attachment_url, 'image' );
+			JEP_Logger::info( 'image', 'Image AI: imagem gerada e importada — ' . $attachment_url );
 		}
 
 		return $attachment_url;
@@ -273,7 +273,7 @@ class JEP_Image_AI {
 		$tmp = download_url( $remote_url, 60 );
 
 		if ( is_wp_error( $tmp ) ) {
-			JEP_Logger::warning( 'Image AI: download_url falhou — ' . $tmp->get_error_message(), 'image' );
+			JEP_Logger::warning( 'image', 'Image AI: download_url falhou — ' . $tmp->get_error_message() );
 			return '';
 		}
 
@@ -287,7 +287,7 @@ class JEP_Image_AI {
 		@unlink( $tmp ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 
 		if ( is_wp_error( $attachment_id ) ) {
-			JEP_Logger::warning( 'Image AI: media_handle_sideload — ' . $attachment_id->get_error_message(), 'image' );
+			JEP_Logger::warning( 'image', 'Image AI: media_handle_sideload — ' . $attachment_id->get_error_message() );
 			return '';
 		}
 

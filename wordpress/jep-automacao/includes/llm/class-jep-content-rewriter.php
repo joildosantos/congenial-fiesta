@@ -181,7 +181,7 @@ class JEP_Content_Rewriter {
 			$score        = (int) trim( preg_replace( '/[^0-9]/', '', $raw_response ) );
 			return min( 10, max( 0, $score ) );
 		} catch ( Exception $e ) {
-			JEP_Logger::warning( 'Content Rewriter: falha ao pontuar relevância — ' . $e->getMessage(), 'llm' );
+			JEP_Logger::warning( 'llm', 'Content Rewriter: falha ao pontuar relevância — ' . $e->getMessage() );
 			return 0;
 		}
 	}
@@ -220,7 +220,7 @@ class JEP_Content_Rewriter {
 		try {
 			return trim( $this->llm->complete( $user_prompt, $system_prompt, 'image_prompt', 256 ) );
 		} catch ( Exception $e ) {
-			JEP_Logger::warning( 'Content Rewriter: falha ao gerar prompt de imagem — ' . $e->getMessage(), 'llm' );
+			JEP_Logger::warning( 'llm', 'Content Rewriter: falha ao gerar prompt de imagem — ' . $e->getMessage() );
 			return "Brazilian community photo, documentary photography, urban periphery, dignified portrait";
 		}
 	}
@@ -274,7 +274,7 @@ class JEP_Content_Rewriter {
 		try {
 			return trim( $this->llm->complete( $user_prompt, $system_prompt, 'weekly_summary', 512 ) );
 		} catch ( Exception $e ) {
-			JEP_Logger::warning( 'Content Rewriter: falha ao gerar resumo semanal — ' . $e->getMessage(), 'llm' );
+			JEP_Logger::warning( 'llm', 'Content Rewriter: falha ao gerar resumo semanal — ' . $e->getMessage() );
 
 			// Fallback: build the summary manually without LLM.
 			return sprintf(

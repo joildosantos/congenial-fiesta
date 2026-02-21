@@ -58,7 +58,7 @@ class JEP_Image_GD {
 	 */
 	public static function create_placeholder( $title, $territory = '' ) {
 		if ( ! extension_loaded( 'gd' ) ) {
-			JEP_Logger::warning( 'Image GD: extensão GD não disponível.', 'image' );
+			JEP_Logger::warning( 'image', 'Image GD: extensão GD não disponível.' );
 			return '';
 		}
 
@@ -75,7 +75,7 @@ class JEP_Image_GD {
 			return $url;
 
 		} catch ( Exception $e ) {
-			JEP_Logger::error( 'Image GD: ' . $e->getMessage(), 'image' );
+			JEP_Logger::error( 'image', 'Image GD: ' . $e->getMessage() );
 			return '';
 		}
 	}

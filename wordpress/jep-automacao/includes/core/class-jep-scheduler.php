@@ -63,7 +63,7 @@ class JEP_Scheduler {
 	public function dispatch_daily_content() {
 		update_option( 'jep_automacao_last_run_daily', current_time( 'mysql' ) );
 		try {
-			JEP_Daily_Content::instance()->run();
+			( new JEP_Daily_Content() )->run();
 		} catch ( Exception $e ) {
 			jep_automacao()->logger()->error(
 				'scheduler.daily_content',
@@ -78,7 +78,7 @@ class JEP_Scheduler {
 	public function dispatch_cold_content() {
 		update_option( 'jep_automacao_last_run_cold', current_time( 'mysql' ) );
 		try {
-			JEP_Cold_Content::instance()->process_next();
+			( new JEP_Cold_Content() )->process_next();
 		} catch ( Exception $e ) {
 			jep_automacao()->logger()->error(
 				'scheduler.cold_content',
@@ -93,7 +93,7 @@ class JEP_Scheduler {
 	public function dispatch_topic_research() {
 		update_option( 'jep_automacao_last_run_research', current_time( 'mysql' ) );
 		try {
-			JEP_Topic_Research::instance()->run();
+			( new JEP_Topic_Research() )->run();
 		} catch ( Exception $e ) {
 			jep_automacao()->logger()->error(
 				'scheduler.topic_research',
@@ -108,7 +108,7 @@ class JEP_Scheduler {
 	public function dispatch_source_discovery() {
 		update_option( 'jep_automacao_last_run_discovery', current_time( 'mysql' ) );
 		try {
-			JEP_Source_Discovery::instance()->run();
+			( new JEP_Source_Discovery() )->run();
 		} catch ( Exception $e ) {
 			jep_automacao()->logger()->error(
 				'scheduler.source_discovery',
@@ -341,9 +341,9 @@ class JEP_Scheduler {
 			$wpdb->prepare(
 				"SELECT
 					COUNT(*) AS total_calls,
-					SUM(tokens_in)  AS total_tokens_in,
-					SUM(tokens_out) AS total_tokens_out,
-					SUM(cost_usd)   AS total_cost
+					SUM(input_tokens)       AS total_tokens_in,
+					SUM(output_tokens)      AS total_tokens_out,
+					SUM(estimated_cost_usd) AS total_cost
 				FROM {$llm_table}
 				WHERE created_at >= %s",
 				$since
@@ -359,7 +359,7 @@ class JEP_Scheduler {
 		$providers_table = $wpdb->prefix . 'jep_llm_providers';
 		$top_providers   = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.name, COUNT(u.id) AS calls, SUM(u.cost_usd) AS cost
+				"SELECT p.name, COUNT(u.id) AS calls, SUM(u.estimated_cost_usd) AS cost
 				FROM {$llm_table} u
 				LEFT JOIN {$providers_table} p ON p.id = u.provider_id
 				WHERE u.created_at >= %s

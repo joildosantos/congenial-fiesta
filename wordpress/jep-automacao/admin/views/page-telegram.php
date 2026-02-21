@@ -7,25 +7,23 @@
 
 defined( 'ABSPATH' ) || exit;
 
-// Handle settings save.
+$settings = jep_automacao()->settings();
+
+// Handle settings save — persiste via JEP_Settings (mesma fonte de page-settings.php).
 if ( isset( $_POST['jep_telegram_save'] ) && check_admin_referer( 'jep_telegram_nonce' ) && current_user_can( 'manage_options' ) ) {
-	update_option( 'jep_telegram_bot_token',      sanitize_text_field( wp_unslash( $_POST['bot_token'] ?? '' ) ) );
-	update_option( 'jep_telegram_editor_chat_id', sanitize_text_field( wp_unslash( $_POST['editor_chat_id'] ?? '' ) ) );
-	update_option( 'jep_telegram_channel_id',     sanitize_text_field( wp_unslash( $_POST['channel_id'] ?? '' ) ) );
-	update_option( 'jep_telegram_webhook_secret', sanitize_text_field( wp_unslash( $_POST['webhook_secret'] ?? '' ) ) );
+	foreach ( array( 'telegram_bot_token', 'telegram_editor_chat_id', 'telegram_channel_id', 'telegram_webhook_secret' ) as $key ) {
+		if ( isset( $_POST[ $key ] ) ) {
+			$settings->set( $key, sanitize_text_field( wp_unslash( $_POST[ $key ] ) ) );
+		}
+	}
 	echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Configuracoes Telegram salvas.', 'jep-automacao' ) . '</p></div>';
 }
-
-$bot_token      = get_option( 'jep_telegram_bot_token', '' );
-$editor_chat_id = get_option( 'jep_telegram_editor_chat_id', '' );
-$channel_id     = get_option( 'jep_telegram_channel_id', '' );
-$webhook_secret = get_option( 'jep_telegram_webhook_secret', '' );
 
 // Pending approvals.
 global $wpdb;
 $approvals_table = $wpdb->prefix . 'jep_approvals';
-$pending = array();
-if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $approvals_table ) ) === $approvals_table ) {
+$pending         = array();
+if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $approvals_table ) ) === $approvals_table ) {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$pending = $wpdb->get_results(
 		"SELECT * FROM {$approvals_table} WHERE status = 'pending' ORDER BY created_at DESC LIMIT 20",
@@ -48,9 +46,12 @@ if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $approvals_table ) )
 		<span id="jep-telegram-me-result" style="margin-left:10px;"></span>
 	</div>
 
-	<!-- Settings form -->
+	<!-- Settings form — lê/salva pelo JEP_Settings (mesma fonte de Configuracoes) -->
 	<div class="jep-section">
 		<h2><?php esc_html_e( 'Configuracoes', 'jep-automacao' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'Estes dados sao compartilhados com a aba Configuracoes. Alterar aqui atualiza em ambos os lugares.', 'jep-automacao' ); ?>
+		</p>
 		<form method="post">
 			<?php wp_nonce_field( 'jep_telegram_nonce' ); ?>
 			<input type="hidden" name="jep_telegram_save" value="1">
@@ -58,8 +59,8 @@ if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $approvals_table ) )
 				<tr>
 					<th><label for="tg_bot_token"><?php esc_html_e( 'Bot Token', 'jep-automacao' ); ?></label></th>
 					<td>
-						<input type="password" id="tg_bot_token" name="bot_token" class="regular-text"
-							value="<?php echo esc_attr( $bot_token ); ?>"
+						<input type="password" id="tg_bot_token" name="telegram_bot_token" class="regular-text"
+							value="<?php echo esc_attr( $settings->get_telegram_bot_token() ); ?>"
 							placeholder="123456789:ABCdef...">
 						<p class="description"><?php esc_html_e( 'Obtido via @BotFather no Telegram.', 'jep-automacao' ); ?></p>
 					</td>
@@ -67,8 +68,8 @@ if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $approvals_table ) )
 				<tr>
 					<th><label for="tg_editor_chat"><?php esc_html_e( 'Chat ID do Editor', 'jep-automacao' ); ?></label></th>
 					<td>
-						<input type="text" id="tg_editor_chat" name="editor_chat_id" class="regular-text"
-							value="<?php echo esc_attr( $editor_chat_id ); ?>"
+						<input type="text" id="tg_editor_chat" name="telegram_editor_chat_id" class="regular-text"
+							value="<?php echo esc_attr( $settings->get_telegram_editor_chat_id() ); ?>"
 							placeholder="123456789">
 						<p class="description"><?php esc_html_e( 'ID do chat ou grupo que recebe os cards de aprovacao A/B.', 'jep-automacao' ); ?></p>
 					</td>
@@ -76,8 +77,8 @@ if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $approvals_table ) )
 				<tr>
 					<th><label for="tg_channel_id"><?php esc_html_e( 'ID do Canal', 'jep-automacao' ); ?></label></th>
 					<td>
-						<input type="text" id="tg_channel_id" name="channel_id" class="regular-text"
-							value="<?php echo esc_attr( $channel_id ); ?>"
+						<input type="text" id="tg_channel_id" name="telegram_channel_id" class="regular-text"
+							value="<?php echo esc_attr( $settings->get_telegram_channel_id() ); ?>"
 							placeholder="@seucanal ou -100123456789">
 						<p class="description"><?php esc_html_e( 'Canal onde o conteudo aprovado sera publicado.', 'jep-automacao' ); ?></p>
 					</td>
@@ -85,8 +86,8 @@ if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $approvals_table ) )
 				<tr>
 					<th><label for="tg_secret"><?php esc_html_e( 'Webhook Secret', 'jep-automacao' ); ?></label></th>
 					<td>
-						<input type="text" id="tg_secret" name="webhook_secret" class="regular-text"
-							value="<?php echo esc_attr( $webhook_secret ); ?>">
+						<input type="text" id="tg_secret" name="telegram_webhook_secret" class="regular-text"
+							value="<?php echo esc_attr( $settings->get_telegram_webhook_secret() ); ?>">
 						<p class="description"><?php esc_html_e( 'Token secreto para validar callbacks do Telegram (opcional).', 'jep-automacao' ); ?></p>
 					</td>
 				</tr>

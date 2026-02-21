@@ -21,7 +21,7 @@ class JEP_Installer {
 	 *
 	 * @var string
 	 */
-	const DB_VERSION = '2.0.1';
+	const DB_VERSION = '2.0.3';
 
 	/**
 	 * Nome da opcao que armazena a versao do DB instalado.
@@ -40,6 +40,8 @@ class JEP_Installer {
 	 */
 	public static function activate() {
 		self::migrate_llm_usage_columns();
+		self::migrate_rss_feeds_columns();
+		self::migrate_llm_providers_columns();
 		self::create_tables();
 		self::set_default_options();
 		self::seed_default_feeds();
@@ -65,6 +67,8 @@ class JEP_Installer {
 		$installed_version = get_option( self::DB_VERSION_OPTION, '0.0.0' );
 		if ( version_compare( $installed_version, self::DB_VERSION, '<' ) ) {
 			self::migrate_llm_usage_columns();
+			self::migrate_rss_feeds_columns();
+			self::migrate_llm_providers_columns();
 			self::create_tables();
 			self::set_default_options();
 			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
@@ -116,6 +120,87 @@ class JEP_Installer {
 		// phpcs:enable
 	}
 
+	/**
+	 * Migra a tabela jep_rss_feeds para o schema v2.
+	 *
+	 * Renomeacoes:
+	 *   active       -> is_active
+	 *   last_fetched -> last_fetch_at
+	 *
+	 * Novas colunas: territory, category, priority, last_error.
+	 *
+	 * @since 2.0.2
+	 * @return void
+	 */
+	private static function migrate_rss_feeds_columns() {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'jep_rss_feeds';
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$cols = $wpdb->get_col( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}'" );
+
+		if ( empty( $cols ) ) {
+			return; // Table does not exist yet; create_tables() will handle it.
+		}
+
+		// Rename: active -> is_active.
+		if ( in_array( 'active', $cols, true ) && ! in_array( 'is_active', $cols, true ) ) {
+			$wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `active` `is_active` TINYINT(1) NOT NULL DEFAULT 1" );
+		}
+
+		// Rename: last_fetched -> last_fetch_at.
+		if ( in_array( 'last_fetched', $cols, true ) && ! in_array( 'last_fetch_at', $cols, true ) ) {
+			$wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `last_fetched` `last_fetch_at` DATETIME DEFAULT NULL" );
+		}
+
+		// Add missing columns.
+		$add = array(
+			'territory' => "ALTER TABLE `{$table}` ADD COLUMN `territory` VARCHAR(200) DEFAULT NULL",
+			'category'  => "ALTER TABLE `{$table}` ADD COLUMN `category`  VARCHAR(200) DEFAULT NULL",
+			'priority'  => "ALTER TABLE `{$table}` ADD COLUMN `priority`  INT(11) NOT NULL DEFAULT 10",
+			'last_error' => "ALTER TABLE `{$table}` ADD COLUMN `last_error` TEXT DEFAULT NULL",
+		);
+
+		// Re-fetch column list after possible renames.
+		$cols = $wpdb->get_col( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}'" );
+
+		foreach ( $add as $col_name => $sql ) {
+			if ( ! in_array( $col_name, $cols, true ) ) {
+				$wpdb->query( $sql );
+			}
+		}
+		// phpcs:enable
+	}
+
+	/**
+	 * Migra a tabela jep_llm_providers para o schema v2.
+	 *
+	 * Renomeacoes:
+	 *   active -> is_active
+	 *
+	 * @since 2.0.3
+	 * @return void
+	 */
+	private static function migrate_llm_providers_columns() {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'jep_llm_providers';
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$cols = $wpdb->get_col( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}'" );
+
+		if ( empty( $cols ) ) {
+			return; // Table does not exist yet; create_tables() will handle it.
+		}
+
+		// Rename: active -> is_active.
+		if ( in_array( 'active', $cols, true ) && ! in_array( 'is_active', $cols, true ) ) {
+			$wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `active` `is_active` TINYINT(1) NOT NULL DEFAULT 1" );
+		}
+		// phpcs:enable
+	}
+
 	// -------------------------------------------------------------------------
 	// Criacao de tabelas
 	// -------------------------------------------------------------------------
@@ -161,13 +246,13 @@ class JEP_Installer {
 			priority        INT(11)              NOT NULL DEFAULT 10,
 			monthly_limit   INT(11)              NOT NULL DEFAULT 0,
 			used_this_month INT(11)              NOT NULL DEFAULT 0,
-			active          TINYINT(1)           NOT NULL DEFAULT 1,
+			is_active       TINYINT(1)           NOT NULL DEFAULT 1,
 			last_used       DATETIME                      DEFAULT NULL,
 			created_at      DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY idx_provider_type (provider_type),
 			KEY idx_priority      (priority),
-			KEY idx_active        (active)
+			KEY idx_is_active     (is_active)
 		) {$charset_collate};";
 
 		// ------------------------------------------------------------------
@@ -196,19 +281,45 @@ class JEP_Installer {
 		// 4. wp_jep_rss_feeds
 		// ------------------------------------------------------------------
 		$sql_rss_feeds = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}jep_rss_feeds (
-			id                   BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			name                 VARCHAR(200)        NOT NULL DEFAULT '',
-			url                  VARCHAR(2000)       NOT NULL DEFAULT '',
-			type                 ENUM('agencia','jornal_regional','portal_comunitario','blog','nacional') NOT NULL DEFAULT 'agencia',
-			region               VARCHAR(200)                 DEFAULT NULL,
-			active               TINYINT(1)          NOT NULL DEFAULT 1,
-			last_fetched         DATETIME                     DEFAULT NULL,
-			fetch_interval_hours INT(11)             NOT NULL DEFAULT 6,
-			created_at           DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			id           BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			name         VARCHAR(200)        NOT NULL DEFAULT '',
+			url          VARCHAR(2000)       NOT NULL DEFAULT '',
+			territory    VARCHAR(200)                 DEFAULT NULL,
+			category     VARCHAR(200)                 DEFAULT NULL,
+			priority     INT(11)             NOT NULL DEFAULT 10,
+			is_active    TINYINT(1)          NOT NULL DEFAULT 1,
+			last_fetch_at DATETIME                    DEFAULT NULL,
+			last_error   TEXT                         DEFAULT NULL,
+			created_at   DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
-			KEY idx_type    (type),
-			KEY idx_active  (active),
-			KEY idx_region  (region)
+			KEY idx_is_active (is_active),
+			KEY idx_priority  (priority),
+			KEY idx_territory (territory)
+		) {$charset_collate};";
+
+		// ------------------------------------------------------------------
+		// 4b. wp_jep_rss_items
+		// ------------------------------------------------------------------
+		$sql_rss_items = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}jep_rss_items (
+			id          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			feed_id     BIGINT(20) UNSIGNED NOT NULL,
+			guid        VARCHAR(512)        NOT NULL DEFAULT '',
+			title       VARCHAR(500)        NOT NULL DEFAULT '',
+			excerpt     TEXT                         DEFAULT NULL,
+			url         VARCHAR(2000)                DEFAULT NULL,
+			image_url   VARCHAR(2000)                DEFAULT NULL,
+			territory   VARCHAR(200)                 DEFAULT NULL,
+			category    VARCHAR(200)                 DEFAULT NULL,
+			pub_date    DATETIME                     DEFAULT NULL,
+			status      ENUM('new','processing','done','rejected') NOT NULL DEFAULT 'new',
+			created_at  DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY  uq_guid     (guid),
+			KEY idx_feed_id   (feed_id),
+			KEY idx_status    (status),
+			KEY idx_territory (territory),
+			KEY idx_pub_date  (pub_date),
+			KEY idx_created_at (created_at)
 		) {$charset_collate};";
 
 		// ------------------------------------------------------------------
@@ -325,6 +436,7 @@ class JEP_Installer {
 		dbDelta( $sql_llm_providers );
 		dbDelta( $sql_cold_content );
 		dbDelta( $sql_rss_feeds );
+		dbDelta( $sql_rss_items );
 		dbDelta( $sql_rss_queue );
 		dbDelta( $sql_pending_approvals );
 		dbDelta( $sql_prompt_evaluations );
@@ -411,31 +523,31 @@ class JEP_Installer {
 
 		$feeds = array(
 			array(
-				'name'                 => 'Agência Brasil',
-				'url'                  => 'https://agenciabrasil.ebc.com.br/rss/geral/feed.xml',
-				'type'                 => 'agencia',
-				'region'               => 'nacional',
-				'active'               => 1,
-				'fetch_interval_hours' => 6,
-				'created_at'           => current_time( 'mysql' ),
+				'name'       => 'Agência Brasil',
+				'url'        => 'https://agenciabrasil.ebc.com.br/rss/geral/feed.xml',
+				'category'   => 'agencia',
+				'territory'  => 'nacional',
+				'is_active'  => 1,
+				'priority'   => 10,
+				'created_at' => current_time( 'mysql' ),
 			),
 			array(
-				'name'                 => 'Ponte Jornalismo',
-				'url'                  => 'https://ponte.org/feed/',
-				'type'                 => 'portal_comunitario',
-				'region'               => 'nacional',
-				'active'               => 1,
-				'fetch_interval_hours' => 6,
-				'created_at'           => current_time( 'mysql' ),
+				'name'       => 'Ponte Jornalismo',
+				'url'        => 'https://ponte.org/feed/',
+				'category'   => 'portal_comunitario',
+				'territory'  => 'nacional',
+				'is_active'  => 1,
+				'priority'   => 20,
+				'created_at' => current_time( 'mysql' ),
 			),
 			array(
-				'name'                 => 'Agência Pública',
-				'url'                  => 'https://apublica.org/feed/',
-				'type'                 => 'agencia',
-				'region'               => 'nacional',
-				'active'               => 1,
-				'fetch_interval_hours' => 6,
-				'created_at'           => current_time( 'mysql' ),
+				'name'       => 'Agência Pública',
+				'url'        => 'https://apublica.org/feed/',
+				'category'   => 'agencia',
+				'territory'  => 'nacional',
+				'is_active'  => 1,
+				'priority'   => 30,
+				'created_at' => current_time( 'mysql' ),
 			),
 		);
 

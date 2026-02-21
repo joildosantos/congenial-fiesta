@@ -153,10 +153,7 @@ class JEP_RSS_Manager {
 			$inserted += $this->fetch_feed( $feed );
 		}
 
-		JEP_Logger::info(
-			sprintf( 'RSS Manager: %d novos itens captados em %d feeds.', $inserted, count( $feeds ) ),
-			'rss'
-		);
+		JEP_Logger::info( 'rss', sprintf( 'RSS Manager: %d novos itens captados em %d feeds.', $inserted, count( $feeds ) ) );
 
 		return $inserted;
 	}
@@ -178,10 +175,7 @@ class JEP_RSS_Manager {
 		$rss = fetch_feed( $feed['url'] );
 
 		if ( is_wp_error( $rss ) ) {
-			JEP_Logger::warning(
-				sprintf( 'RSS Manager: erro ao buscar feed "%s" — %s', $feed['name'], $rss->get_error_message() ),
-				'rss'
-			);
+			JEP_Logger::warning( 'rss', sprintf( 'RSS Manager: erro ao buscar feed "%s" — %s', $feed['name'], $rss->get_error_message() ) );
 
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->update(

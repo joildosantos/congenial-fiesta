@@ -376,6 +376,21 @@ class JEP_Telegram_Bot {
 	}
 
 	/**
+	 * Calls the Telegram getMe API method to verify the bot token.
+	 *
+	 * @since 2.0.3
+	 *
+	 * @return array|WP_Error Bot info array on success, WP_Error on failure.
+	 */
+	public function get_me() {
+		try {
+			return $this->api_call( 'getMe' );
+		} catch ( Exception $e ) {
+			return new WP_Error( 'telegram_get_me_failed', $e->getMessage() );
+		}
+	}
+
+	/**
 	 * Checks whether the bot is fully configured with a token and editor chat ID.
 	 *
 	 * @since 2.0.0
