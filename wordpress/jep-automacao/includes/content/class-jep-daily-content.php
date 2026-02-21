@@ -54,7 +54,7 @@ class JEP_Daily_Content {
 	 * }
 	 */
 	public function run() {
-		JEP_Logger::info( 'Daily Content: iniciando pipeline diário.', 'daily_content' );
+		JEP_Logger::info( 'daily_content', 'Daily Content: iniciando pipeline diário.' );
 
 		$config    = $this->get_config();
 		$territory = isset( $config['territory'] ) ? $config['territory'] : '';
@@ -64,7 +64,7 @@ class JEP_Daily_Content {
 		$items = $rss->get_recent_items( 24, $territory, 30 );
 
 		if ( empty( $items ) ) {
-			JEP_Logger::info( 'Daily Content: nenhum item RSS nas últimas 24h.', 'daily_content' );
+			JEP_Logger::info( 'daily_content', 'Daily Content: nenhum item RSS nas últimas 24h.' );
 			return array( 'rewritten' => 0, 'digest_id' => 0 );
 		}
 
@@ -111,24 +111,18 @@ class JEP_Daily_Content {
 					}
 				}
 			} catch ( Exception $e ) {
-				JEP_Logger::warning(
-					sprintf( 'Daily Content: erro ao reescrever item #%d — %s', $item['id'], $e->getMessage() ),
-					'daily_content'
-				);
+				JEP_Logger::warning( 'daily_content', sprintf( 'Daily Content: erro ao reescrever item #%d — %s', $item['id'], $e->getMessage() ) );
 			}
 		}
 
 		// Step 6: Create digest post.
 		$digest_id = $this->create_digest_post( $items, $config );
 
-		JEP_Logger::info(
-			sprintf(
+		JEP_Logger::info( 'daily_content', sprintf(
 				'Daily Content: %d artigos enviados ao Telegram, digest post #%d criado.',
 				$rewritten,
 				$digest_id
-			),
-			'daily_content'
-		);
+			) );
 
 		return array( 'rewritten' => $rewritten, 'digest_id' => $digest_id );
 	}
@@ -255,7 +249,7 @@ class JEP_Daily_Content {
 					}
 				}
 			} catch ( Exception $e ) {
-				JEP_Logger::warning( 'Daily Content: geração de imagem AI falhou — ' . $e->getMessage(), 'daily_content' );
+				JEP_Logger::warning( 'daily_content', 'Daily Content: geração de imagem AI falhou — ' . $e->getMessage() );
 			}
 		}
 
@@ -264,7 +258,7 @@ class JEP_Daily_Content {
 			try {
 				return JEP_Image_GD::create_placeholder( $rewritten['titulo_a'] );
 			} catch ( Exception $e ) {
-				JEP_Logger::warning( 'Daily Content: placeholder GD falhou — ' . $e->getMessage(), 'daily_content' );
+				JEP_Logger::warning( 'daily_content', 'Daily Content: placeholder GD falhou — ' . $e->getMessage() );
 			}
 		}
 
@@ -314,10 +308,7 @@ class JEP_Daily_Content {
 		$post_id = wp_insert_post( $post_data, true );
 
 		if ( is_wp_error( $post_id ) ) {
-			JEP_Logger::error(
-				'Daily Content: falha ao criar post digest — ' . $post_id->get_error_message(),
-				'daily_content'
-			);
+			JEP_Logger::error( 'daily_content', 'Daily Content: falha ao criar post digest — ' . $post_id->get_error_message() );
 			return 0;
 		}
 

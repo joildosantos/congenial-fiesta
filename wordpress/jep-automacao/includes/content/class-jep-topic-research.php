@@ -50,7 +50,7 @@ class JEP_Topic_Research {
 	 * @return int Number of pautas imported.
 	 */
 	public function run() {
-		JEP_Logger::info( 'Topic Research: iniciando descoberta de tópicos.', 'topic_research' );
+		JEP_Logger::info( 'topic_research', 'Topic Research: iniciando descoberta de tópicos.' );
 
 		$topics = array();
 		$topics = array_merge( $topics, $this->discover_from_rss() );
@@ -63,7 +63,7 @@ class JEP_Topic_Research {
 		$topics = array_slice( $topics, 0, self::MAX_ITEMS_PER_RUN );
 
 		if ( empty( $topics ) ) {
-			JEP_Logger::info( 'Topic Research: nenhum tópico novo encontrado.', 'topic_research' );
+			JEP_Logger::info( 'topic_research', 'Topic Research: nenhum tópico novo encontrado.' );
 			return 0;
 		}
 
@@ -74,10 +74,7 @@ class JEP_Topic_Research {
 		$cold    = new JEP_Cold_Content();
 		$count   = $cold->import_from_research( $topics );
 
-		JEP_Logger::info(
-			sprintf( 'Topic Research: %d tópicos importados.', $count ),
-			'topic_research'
-		);
+		JEP_Logger::info( 'topic_research', sprintf( 'Topic Research: %d tópicos importados.', $count ) );
 
 		return $count;
 	}
@@ -157,10 +154,7 @@ class JEP_Topic_Research {
 			$feed = fetch_feed( $url );
 
 			if ( is_wp_error( $feed ) ) {
-				JEP_Logger::warning(
-					sprintf( 'Topic Research: erro ao buscar RSS %s — %s', $url, $feed->get_error_message() ),
-					'topic_research'
-				);
+				JEP_Logger::warning( 'topic_research', sprintf( 'Topic Research: erro ao buscar RSS %s — %s', $url, $feed->get_error_message() ) );
 				continue;
 			}
 
@@ -201,10 +195,7 @@ class JEP_Topic_Research {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			JEP_Logger::warning(
-				'Topic Research: Google Trends inacessível — ' . $response->get_error_message(),
-				'topic_research'
-			);
+			JEP_Logger::warning( 'topic_research', 'Topic Research: Google Trends inacessível — ' . $response->get_error_message() );
 			return array();
 		}
 
@@ -272,10 +263,7 @@ class JEP_Topic_Research {
 			unset( $topic );
 
 		} catch ( Exception $e ) {
-			JEP_Logger::warning(
-				'Topic Research: enriquecimento LLM falhou — ' . $e->getMessage(),
-				'topic_research'
-			);
+			JEP_Logger::warning( 'topic_research', 'Topic Research: enriquecimento LLM falhou — ' . $e->getMessage() );
 		}
 
 		return $topics;

@@ -323,17 +323,14 @@ class JEP_Cold_Content {
 		);
 
 		if ( ! $item ) {
-			JEP_Logger::info( 'Cold Content: nenhuma pauta pendente na fila.', 'cold_content' );
+			JEP_Logger::info( 'cold_content', 'Cold Content: nenhuma pauta pendente na fila.' );
 			return false;
 		}
 
 		// Mark as processing immediately to prevent duplicate workers.
 		$this->update( (int) $item['id'], array( 'status' => 'processing' ) );
 
-		JEP_Logger::info(
-			sprintf( 'Cold Content: processando pauta #%d "%s".', $item['id'], $item['title'] ),
-			'cold_content'
-		);
+		JEP_Logger::info( 'cold_content', sprintf( 'Cold Content: processando pauta #%d "%s".', $item['id'], $item['title'] ) );
 
 		try {
 			// Decode research_data if stored as JSON.
@@ -379,10 +376,7 @@ class JEP_Cold_Content {
 
 				if ( $approval_id ) {
 					$telegram->send_for_approval( $approval_id );
-					JEP_Logger::info(
-						sprintf( 'Cold Content: aprovação #%d criada e enviada ao Telegram.', $approval_id ),
-						'cold_content'
-					);
+					JEP_Logger::info( 'cold_content', sprintf( 'Cold Content: aprovação #%d criada e enviada ao Telegram.', $approval_id ) );
 				}
 			}
 
@@ -392,10 +386,7 @@ class JEP_Cold_Content {
 			return true;
 
 		} catch ( Exception $e ) {
-			JEP_Logger::error(
-				sprintf( 'Cold Content: erro ao processar pauta #%d — %s', $item['id'], $e->getMessage() ),
-				'cold_content'
-			);
+			JEP_Logger::error( 'cold_content', sprintf( 'Cold Content: erro ao processar pauta #%d — %s', $item['id'], $e->getMessage() ) );
 			// Revert to pending so it can be retried.
 			$this->update( (int) $item['id'], array( 'status' => 'pending' ) );
 			return false;
@@ -476,10 +467,7 @@ class JEP_Cold_Content {
 			}
 		}
 
-		JEP_Logger::info(
-			sprintf( 'Cold Content: %d pautas importadas da pesquisa automática.', $inserted ),
-			'cold_content'
-		);
+		JEP_Logger::info( 'cold_content', sprintf( 'Cold Content: %d pautas importadas da pesquisa automática.', $inserted ) );
 
 		return $inserted;
 	}
@@ -524,7 +512,7 @@ class JEP_Cold_Content {
 					return $ai_image;
 				}
 			} catch ( Exception $e ) {
-				JEP_Logger::warning( 'Cold Content: geração de imagem AI falhou — ' . $e->getMessage(), 'cold_content' );
+				JEP_Logger::warning( 'cold_content', 'Cold Content: geração de imagem AI falhou — ' . $e->getMessage() );
 			}
 		}
 
@@ -533,7 +521,7 @@ class JEP_Cold_Content {
 			try {
 				return JEP_Image_GD::create_placeholder( $rewritten['titulo_a'] );
 			} catch ( Exception $e ) {
-				JEP_Logger::warning( 'Cold Content: placeholder GD falhou — ' . $e->getMessage(), 'cold_content' );
+				JEP_Logger::warning( 'cold_content', 'Cold Content: placeholder GD falhou — ' . $e->getMessage() );
 			}
 		}
 

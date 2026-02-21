@@ -78,15 +78,12 @@ class JEP_LLM_Manager {
 			// Enforce monthly quota when set.
 			if ( (int) $provider['monthly_limit'] > 0
 				&& (int) $provider['used_this_month'] >= (int) $provider['monthly_limit'] ) {
-				JEP_Logger::warning(
-					sprintf(
+				JEP_Logger::warning( 'llm', sprintf(
 						'LLM Manager: provedor "%s" atingiu o limite mensal (%d/%d). Pulando.',
 						$provider['name'],
 						(int) $provider['used_this_month'],
 						(int) $provider['monthly_limit']
-					),
-					'llm'
-				);
+					) );
 				continue;
 			}
 
@@ -103,14 +100,11 @@ class JEP_LLM_Manager {
 				return $result['text'];
 
 			} catch ( Exception $e ) {
-				JEP_Logger::warning(
-					sprintf(
+				JEP_Logger::warning( 'llm', sprintf(
 						'LLM Manager: provedor "%s" falhou (%s). Tentando próximo.',
 						$provider['name'],
 						$e->getMessage()
-					),
-					'llm'
-				);
+					) );
 				// Continue to next provider.
 			}
 		}
@@ -338,7 +332,7 @@ class JEP_LLM_Manager {
 
 		$this->clear_provider_cache();
 
-		JEP_Logger::info( 'LLM Manager: contadores mensais redefinidos para zero.', 'llm' );
+		JEP_Logger::info( 'llm', 'LLM Manager: contadores mensais redefinidos para zero.' );
 	}
 
 	// -------------------------------------------------------------------------

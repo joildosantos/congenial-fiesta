@@ -9,6 +9,9 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Class JEP_Logger
+ *
+ * Todos os métodos são estáticos, permitindo tanto JEP_Logger::info()
+ * quanto jep_automacao()->logger()->info().
  */
 class JEP_Logger {
 
@@ -18,35 +21,30 @@ class JEP_Logger {
 	const LEVEL_ERROR   = 'error';
 
 	/**
-	 * Nome da tabela de logs.
+	 * Retorna o nome completo da tabela de logs.
 	 *
-	 * @var string
+	 * @return string
 	 */
-	private $table;
-
-	/**
-	 * Construtor.
-	 */
-	public function __construct() {
+	private static function table() {
 		global $wpdb;
-		$this->table = $wpdb->prefix . 'jep_logs';
+		return $wpdb->prefix . 'jep_logs';
 	}
 
 	/**
 	 * Registra uma mensagem de log.
 	 *
-	 * @param string $event   Identificador do evento.
-	 * @param string $message Mensagem descritiva.
-	 * @param string $level   Nivel: info, success, warning, error.
-	 * @param int    $post_id ID do post relacionado (opcional).
-	 * @param array  $context Dados adicionais (opcional).
+	 * @param string     $event   Identificador do evento.
+	 * @param string     $message Mensagem descritiva.
+	 * @param string     $level   Nivel: info, success, warning, error.
+	 * @param int|null   $post_id ID do post relacionado (opcional).
+	 * @param array      $context Dados adicionais (opcional).
 	 * @return int|false ID do registro ou false em erro.
 	 */
-	public function log( $event, $message, $level = self::LEVEL_INFO, $post_id = null, $context = array() ) {
+	public static function log( $event, $message, $level = self::LEVEL_INFO, $post_id = null, $context = array() ) {
 		global $wpdb;
 
 		return $wpdb->insert(
-			$this->table,
+			self::table(),
 			array(
 				'created_at' => current_time( 'mysql' ),
 				'level'      => sanitize_text_field( $level ),
@@ -62,49 +60,77 @@ class JEP_Logger {
 	/**
 	 * Atalho para log de informacao.
 	 *
-	 * @param string $event   Evento.
-	 * @param string $message Mensagem.
-	 * @param int    $post_id ID do post.
-	 * @param array  $context Contexto.
+	 * @param string         $event   Evento.
+	 * @param string         $message Mensagem.
+	 * @param int|array|null $post_id ID do post ou array de contexto.
+	 * @param array          $context Contexto.
 	 */
-	public function info( $event, $message, $post_id = null, $context = array() ) {
-		$this->log( $event, $message, self::LEVEL_INFO, $post_id, $context );
+	public static function info( $event, $message, $post_id = null, $context = array() ) {
+		if ( is_array( $post_id ) ) {
+			$context = $post_id;
+			$post_id = null;
+		}
+		self::log( $event, $message, self::LEVEL_INFO, $post_id, $context );
 	}
 
 	/**
 	 * Atalho para log de sucesso.
 	 *
-	 * @param string $event   Evento.
-	 * @param string $message Mensagem.
-	 * @param int    $post_id ID do post.
-	 * @param array  $context Contexto.
+	 * @param string         $event   Evento.
+	 * @param string         $message Mensagem.
+	 * @param int|array|null $post_id ID do post ou array de contexto.
+	 * @param array          $context Contexto.
 	 */
-	public function success( $event, $message, $post_id = null, $context = array() ) {
-		$this->log( $event, $message, self::LEVEL_SUCCESS, $post_id, $context );
+	public static function success( $event, $message, $post_id = null, $context = array() ) {
+		if ( is_array( $post_id ) ) {
+			$context = $post_id;
+			$post_id = null;
+		}
+		self::log( $event, $message, self::LEVEL_SUCCESS, $post_id, $context );
 	}
 
 	/**
 	 * Atalho para log de aviso.
 	 *
-	 * @param string $event   Evento.
-	 * @param string $message Mensagem.
-	 * @param int    $post_id ID do post.
-	 * @param array  $context Contexto.
+	 * @param string         $event   Evento.
+	 * @param string         $message Mensagem.
+	 * @param int|array|null $post_id ID do post ou array de contexto.
+	 * @param array          $context Contexto.
 	 */
-	public function warning( $event, $message, $post_id = null, $context = array() ) {
-		$this->log( $event, $message, self::LEVEL_WARNING, $post_id, $context );
+	public static function warning( $event, $message, $post_id = null, $context = array() ) {
+		if ( is_array( $post_id ) ) {
+			$context = $post_id;
+			$post_id = null;
+		}
+		self::log( $event, $message, self::LEVEL_WARNING, $post_id, $context );
 	}
 
 	/**
 	 * Atalho para log de erro.
 	 *
-	 * @param string $event   Evento.
-	 * @param string $message Mensagem.
-	 * @param int    $post_id ID do post.
-	 * @param array  $context Contexto.
+	 * @param string         $event   Evento.
+	 * @param string         $message Mensagem.
+	 * @param int|array|null $post_id ID do post ou array de contexto.
+	 * @param array          $context Contexto.
 	 */
-	public function error( $event, $message, $post_id = null, $context = array() ) {
-		$this->log( $event, $message, self::LEVEL_ERROR, $post_id, $context );
+	public static function error( $event, $message, $post_id = null, $context = array() ) {
+		if ( is_array( $post_id ) ) {
+			$context = $post_id;
+			$post_id = null;
+		}
+		self::log( $event, $message, self::LEVEL_ERROR, $post_id, $context );
+	}
+
+	/**
+	 * Alias de info() para compatibilidade com código que usa ::debug().
+	 *
+	 * @param string         $event   Evento.
+	 * @param string         $message Mensagem.
+	 * @param int|array|null $post_id ID do post ou array de contexto.
+	 * @param array          $context Contexto.
+	 */
+	public static function debug( $event, $message, $post_id = null, $context = array() ) {
+		self::info( $event, $message, $post_id, $context );
 	}
 
 	/**
@@ -115,8 +141,9 @@ class JEP_Logger {
 	 * @param string $level  Filtrar por nivel (opcional).
 	 * @return array
 	 */
-	public function get_logs( $limit = 50, $offset = 0, $level = '' ) {
+	public static function get_logs( $limit = 50, $offset = 0, $level = '' ) {
 		global $wpdb;
+		$table = self::table();
 
 		$where = '';
 		if ( $level ) {
@@ -127,7 +154,7 @@ class JEP_Logger {
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				"SELECT * FROM {$this->table} {$where} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+				"SELECT * FROM {$table} {$where} ORDER BY created_at DESC LIMIT %d OFFSET %d",
 				$limit,
 				$offset
 			)
@@ -140,33 +167,99 @@ class JEP_Logger {
 	 * @param string $level Filtrar por nivel (opcional).
 	 * @return int
 	 */
-	public function count_logs( $level = '' ) {
+	public static function count_logs( $level = '' ) {
 		global $wpdb;
+		$table = self::table();
 
 		if ( $level ) {
 			return (int) $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT COUNT(*) FROM {$this->table} WHERE level = %s", // phpcs:ignore
+					"SELECT COUNT(*) FROM {$table} WHERE level = %s", // phpcs:ignore
 					$level
 				)
 			);
 		}
 
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->table}" ); // phpcs:ignore
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ); // phpcs:ignore
 	}
 
 	/**
-	 * Remove logs mais antigos que N dias.
+	 * Retorna logs paginados com total — para uso via REST API.
+	 *
+	 * @param int   $page     Pagina (1-based).
+	 * @param int   $per_page Itens por pagina.
+	 * @param array $filters  Filtros opcionais: 'level', 'event'.
+	 * @return array { logs: array, total: int, pages: int }
+	 */
+	public static function get_paginated( $page = 1, $per_page = 20, $filters = array() ) {
+		global $wpdb;
+		$table = self::table();
+
+		$wheres = array();
+		$values = array();
+
+		if ( ! empty( $filters['level'] ) ) {
+			$wheres[] = 'level = %s';
+			$values[] = sanitize_text_field( $filters['level'] );
+		}
+		if ( ! empty( $filters['event'] ) ) {
+			$wheres[] = 'event LIKE %s';
+			$values[] = '%' . $wpdb->esc_like( sanitize_text_field( $filters['event'] ) ) . '%';
+		}
+
+		$where_sql = $wheres ? 'WHERE ' . implode( ' AND ', $wheres ) : '';
+		$offset    = ( max( 1, (int) $page ) - 1 ) * (int) $per_page;
+
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( $values ) {
+			$total = (int) $wpdb->get_var(
+				$wpdb->prepare( "SELECT COUNT(*) FROM {$table} {$where_sql}", ...$values )
+			);
+			$logs = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} {$where_sql} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+					...array_merge( $values, array( (int) $per_page, $offset ) )
+				),
+				ARRAY_A
+			);
+		} else {
+			$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+			$logs  = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+					(int) $per_page,
+					$offset
+				),
+				ARRAY_A
+			);
+		}
+		// phpcs:enable
+
+		return array(
+			'logs'  => $logs,
+			'total' => $total,
+			'pages' => $per_page > 0 ? (int) ceil( $total / $per_page ) : 1,
+		);
+	}
+
+	/**
+	 * Remove logs mais antigos que N dias. 0 = remove todos.
 	 *
 	 * @param int $days Numero de dias.
 	 * @return int Numero de registros removidos.
 	 */
-	public function prune( $days = 30 ) {
+	public static function prune( $days = 30 ) {
 		global $wpdb;
+		$table = self::table();
 
-		return $wpdb->query(
+		if ( 0 === (int) $days ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			return (int) $wpdb->query( "DELETE FROM {$table}" );
+		}
+
+		return (int) $wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$this->table} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)", // phpcs:ignore
+				"DELETE FROM {$table} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)", // phpcs:ignore
 				$days
 			)
 		);
@@ -177,11 +270,12 @@ class JEP_Logger {
 	 *
 	 * @return array
 	 */
-	public function get_summary() {
+	public static function get_summary() {
 		global $wpdb;
+		$table = self::table();
 
 		$rows = $wpdb->get_results(
-			"SELECT level, COUNT(*) as total FROM {$this->table} GROUP BY level" // phpcs:ignore
+			"SELECT level, COUNT(*) as total FROM {$table} GROUP BY level" // phpcs:ignore
 		);
 
 		$summary = array(
