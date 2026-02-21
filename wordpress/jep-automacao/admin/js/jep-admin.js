@@ -68,7 +68,7 @@
 	/**
 	 * Teste de webhook.
 	 */
-	$('#jep-test-webhook').on('click', function () {
+	$(document).on('click', '#jep-test-webhook', function () {
 		var $btn    = $(this);
 		var $result = $('#jep-test-result');
 
@@ -100,7 +100,7 @@
 	/**
 	 * Limpar logs - 30 dias.
 	 */
-	$('#jep-clear-logs-30').on('click', function () {
+	$(document).on('click', '#jep-clear-logs-30', function () {
 		if (!window.confirm('Remover logs com mais de 30 dias?')) {
 			return;
 		}
@@ -131,7 +131,7 @@
 	/**
 	 * Limpar todos os logs.
 	 */
-	$('#jep-clear-logs-all').on('click', function () {
+	$(document).on('click', '#jep-clear-logs-all', function () {
 		if (!window.confirm('Remover TODOS os logs? Esta acao nao pode ser desfeita.')) {
 			return;
 		}
@@ -208,13 +208,14 @@
 			},
 			success: function (response) {
 				if (response.success) {
-					var msg = response.data.message || 'OK';
+					var msg = response.data.response || response.data.message || 'OK';
 					if (response.data.latency_ms) {
-						msg += ' (' + response.data.latency_ms + ' ms)';
+						msg = 'OK (' + response.data.latency_ms + ' ms) — ' + msg;
 					}
 					showFeedback($feedback, msg, 'success');
 				} else {
-					showFeedback($feedback, response.data.message || 'Erro.', 'error');
+					var err = response.data && (response.data.response || response.data.message);
+					showFeedback($feedback, err || 'Erro ao testar provedor.', 'error');
 				}
 			},
 			error: function () {
@@ -229,7 +230,7 @@
 	/**
 	 * Verificar conexao com o bot Telegram.
 	 */
-	$('#jep-telegram-get-me').on('click', function () {
+	$(document).on('click', '#jep-telegram-get-me', function () {
 		var $btn    = $(this);
 		var $result = $('#jep-telegram-me-result');
 

@@ -35,10 +35,13 @@ class JEP_Admin {
 		// AJAX handlers.
 		add_action( 'wp_ajax_jep_clear_logs',          array( $this, 'ajax_clear_logs' ) );
 		add_action( 'wp_ajax_jep_run_pipeline',        array( $this, 'ajax_run_pipeline' ) );
-		add_action( 'wp_ajax_jep_test_llm_provider',   array( $this, 'ajax_test_llm_provider' ) );
-		add_action( 'wp_ajax_jep_telegram_bot_info',   array( $this, 'ajax_telegram_bot_info' ) );
+		add_action( 'wp_ajax_jep_trigger_workflow',    array( $this, 'ajax_run_pipeline' ) ); // alias.
+		add_action( 'wp_ajax_jep_test_llm_provider',  array( $this, 'ajax_test_llm_provider' ) );
+		add_action( 'wp_ajax_jep_telegram_bot_info',  array( $this, 'ajax_telegram_bot_info' ) );
 		add_action( 'wp_ajax_jep_rss_fetch_now',       array( $this, 'ajax_rss_fetch_now' ) );
-		add_action( 'wp_ajax_jep_save_image_ai',       array( $this, 'ajax_save_image_ai' ) );
+		add_action( 'wp_ajax_jep_save_image_ai',        array( $this, 'ajax_save_image_ai' ) );
+		add_action( 'wp_ajax_jep_test_webhook',         array( $this, 'ajax_test_webhook' ) );
+		add_action( 'wp_ajax_jep_debug_write_log',      array( $this, 'ajax_debug_write_log' ) );
 	}
 
 	// -------------------------------------------------------------------------
@@ -134,6 +137,13 @@ class JEP_Admin {
 				'menu'     => __( 'Logs', 'jep-automacao' ),
 				'slug'     => 'jep-automacao-logs',
 				'callback' => array( $this, 'render_logs' ),
+			),
+			array(
+				'parent'   => $slug,
+				'title'    => __( 'Diagnostico', 'jep-automacao' ),
+				'menu'     => __( 'Diagnostico', 'jep-automacao' ),
+				'slug'     => 'jep-automacao-debug',
+				'callback' => array( $this, 'render_debug' ),
 			),
 		);
 
@@ -294,7 +304,9 @@ class JEP_Admin {
 			wp_send_json_error( array( 'message' => __( 'Permissao negada.', 'jep-automacao' ) ), 403 );
 		}
 
-		$pipeline = sanitize_key( isset( $_POST['pipeline'] ) ? wp_unslash( $_POST['pipeline'] ) : '' );
+		// Accept both 'pipeline' (dashboard inline JS) and 'workflow' (jep-admin.js global handler).
+		$pipeline = sanitize_key( isset( $_POST['pipeline'] ) ? wp_unslash( $_POST['pipeline'] )
+			: ( isset( $_POST['workflow'] ) ? wp_unslash( $_POST['workflow'] ) : '' ) );
 
 		switch ( $pipeline ) {
 			case 'cold_content':
@@ -430,6 +442,67 @@ class JEP_Admin {
 		$count = $rss->fetch_all();
 
 		wp_send_json_success( array( 'message' => sprintf( __( '%d novos itens captados dos feeds RSS.', 'jep-automacao' ), $count ) ) );
+	}
+
+	/**
+	 * Render: diagnostico do sistema.
+	 *
+	 * @return void
+	 */
+	public function render_debug() {
+		require JEP_AUTOMACAO_PLUGIN_DIR . 'admin/views/page-debug.php';
+	}
+
+	/**
+	 * AJAX: test Telegram webhook URL — verifica se o webhook esta configurado.
+	 *
+	 * @return void
+	 */
+	public function ajax_test_webhook() {
+		check_ajax_referer( 'jep_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permissao negada.', 'jep-automacao' ) ), 403 );
+		}
+
+		if ( ! class_exists( 'JEP_Telegram_Bot' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Modulo Telegram nao disponivel.', 'jep-automacao' ) ) );
+			return;
+		}
+
+		$bot    = new JEP_Telegram_Bot();
+		$result = $bot->get_me();
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+			return;
+		}
+
+		$username = isset( $result['username'] ) ? '@' . $result['username'] : '?';
+		wp_send_json_success( array( 'message' => sprintf( __( 'Bot conectado: %s', 'jep-automacao' ), $username ) ) );
+	}
+
+	/**
+	 * AJAX: escreve um log de teste (usado pela pagina de diagnostico).
+	 *
+	 * @return void
+	 */
+	public function ajax_debug_write_log() {
+		check_ajax_referer( 'jep_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Permissao negada.' ), 403 );
+		}
+
+		$result = JEP_Logger::info( 'diagnostico', 'Log de teste gerado via AJAX na pagina de diagnostico.' );
+
+		if ( false === $result ) {
+			global $wpdb;
+			wp_send_json_error( array( 'message' => 'Falha ao escrever log: ' . $wpdb->last_error ) );
+			return;
+		}
+
+		wp_send_json_success( array( 'message' => 'Log escrito com sucesso. ID: ' . $result ) );
 	}
 
 	// -------------------------------------------------------------------------

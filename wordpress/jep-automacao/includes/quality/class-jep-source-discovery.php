@@ -100,14 +100,12 @@ class JEP_Source_Discovery {
 		$new_domains = array_values( array_diff( $recent_domains, $existing_domains ) );
 
 		if ( empty( $new_domains ) ) {
-			$this->logger->info( 'Source Discovery: nenhum domínio novo encontrado neste ciclo.' );
+			$this->logger->info( 'source_discovery', 'Source Discovery: nenhum domínio novo encontrado neste ciclo.' );
 			return;
 		}
 
-		$this->logger->info(
-			'Source Discovery: avaliando domínios via LLM.',
-			[ 'count' => count( $new_domains ), 'domains' => $new_domains ]
-		);
+		$this->logger->info( 'source_discovery', 'Source Discovery: avaliando domínios via LLM.',
+			[ 'count' => count( $new_domains ), 'domains' => $new_domains ] );
 
 		// Ask the LLM to evaluate the domains.
 		$prompt   = $this->build_discovery_prompt( $new_domains );
@@ -115,7 +113,7 @@ class JEP_Source_Discovery {
 		$response = $llm ? $llm->complete( $prompt ) : '';
 
 		if ( empty( $response ) ) {
-			$this->logger->warning( 'Source Discovery: LLM não retornou resposta.' );
+			$this->logger->warning( 'source_discovery', 'Source Discovery: LLM não retornou resposta.' );
 			return;
 		}
 
@@ -123,7 +121,7 @@ class JEP_Source_Discovery {
 		$suggestions = $this->parse_llm_response( $response );
 
 		if ( empty( $suggestions ) ) {
-			$this->logger->info( 'Source Discovery: LLM não identificou fontes qualificadas.' );
+			$this->logger->info( 'source_discovery', 'Source Discovery: LLM não identificou fontes qualificadas.' );
 			return;
 		}
 
@@ -136,10 +134,8 @@ class JEP_Source_Discovery {
 			}
 
 			if ( ! $this->test_feed_url( $feed_url ) ) {
-				$this->logger->info(
-					'Source Discovery: feed URL inválida, ignorando.',
-					[ 'url_feed' => $feed_url ]
-				);
+				$this->logger->info( 'source_discovery', 'Source Discovery: feed URL inválida, ignorando.',
+					[ 'url_feed' => $feed_url ] );
 				continue;
 			}
 
@@ -148,10 +144,8 @@ class JEP_Source_Discovery {
 		}
 
 		if ( $new_count > 0 ) {
-			$this->logger->info(
-				'Source Discovery: novas sugestões salvas.',
-				[ 'count' => $new_count ]
-			);
+			$this->logger->info( 'source_discovery', 'Source Discovery: novas sugestões salvas.',
+				[ 'count' => $new_count ] );
 
 			// Notify the editorial team via Telegram.
 			$message = sprintf(
@@ -164,7 +158,7 @@ class JEP_Source_Discovery {
 				$telegram->send_message( $message );
 			}
 		} else {
-			$this->logger->info( 'Source Discovery: nenhuma sugestão válida após teste de feeds.' );
+			$this->logger->info( 'source_discovery', 'Source Discovery: nenhuma sugestão válida após teste de feeds.' );
 		}
 	}
 
@@ -448,10 +442,8 @@ PROMPT;
 		);
 		// phpcs:enable
 
-		$this->logger->info(
-			'Source Discovery: sugestão aprovada e adicionada às fontes ativas.',
-			[ 'suggestion_id' => $id, 'new_feed_id' => $new_feed_id ]
-		);
+		$this->logger->info( 'source_discovery', 'Source Discovery: sugestão aprovada e adicionada às fontes ativas.',
+			[ 'suggestion_id' => $id, 'new_feed_id' => $new_feed_id ] );
 
 		return $new_feed_id;
 	}
@@ -483,7 +475,7 @@ PROMPT;
 		// phpcs:enable
 
 		if ( false !== $result ) {
-			$this->logger->info( 'Source Discovery: sugestão rejeitada.', [ 'suggestion_id' => $id ] );
+			$this->logger->info( 'source_discovery', 'Source Discovery: sugestão rejeitada.', [ 'suggestion_id' => $id ] );
 			return true;
 		}
 
@@ -514,7 +506,7 @@ PROMPT;
 		$end   = strrpos( $json_string, ']' );
 
 		if ( false === $start || false === $end ) {
-			$this->logger->warning( 'Source Discovery: não foi possível localizar JSON na resposta do LLM.' );
+			$this->logger->warning( 'source_discovery', 'Source Discovery: não foi possível localizar JSON na resposta do LLM.' );
 			return [];
 		}
 
@@ -522,10 +514,8 @@ PROMPT;
 		$decoded     = json_decode( $json_string, true );
 
 		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-			$this->logger->warning(
-				'Source Discovery: resposta JSON inválida.',
-				[ 'json_error' => json_last_error_msg() ]
-			);
+			$this->logger->warning( 'source_discovery', 'Source Discovery: resposta JSON inválida.',
+				[ 'json_error' => json_last_error_msg() ] );
 			return [];
 		}
 

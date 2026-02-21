@@ -98,13 +98,11 @@ class JEP_Telegram_Publisher {
 
 		// Security: only accept messages from the configured editor chat.
 		if ( (string) $this->get_editor_chat_id() !== $from_id ) {
-			jep_automacao()->logger()->info(
-				sprintf(
+			jep_automacao()->logger()->info( 'telegram_publisher', sprintf(
 					'[TelegramPublisher] Ignored message from unknown sender %s (expected %s).',
 					$from_id,
 					$this->get_editor_chat_id()
-				)
-			);
+				) );
 			return;
 		}
 
@@ -352,9 +350,7 @@ class JEP_Telegram_Publisher {
 			$file_info = $this->bot->api_call( 'getFile', [ 'file_id' => $file_id ] );
 		} catch ( Exception $e ) {
 			$this->bot->send_to_editor( '❌ Não foi possível obter o arquivo da foto.' );
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramPublisher] getFile failed: %s', $e->getMessage() )
-			);
+			jep_automacao()->logger()->error( 'telegram_publisher', sprintf( '[TelegramPublisher] getFile failed: %s', $e->getMessage() ) );
 			return;
 		}
 
@@ -392,9 +388,7 @@ class JEP_Telegram_Publisher {
 				$rewriter   = new JEP_Content_Rewriter();
 				$draft_text = $rewriter->short_rewrite( $caption );
 			} catch ( Exception $e ) {
-				jep_automacao()->logger()->warning(
-					sprintf( '[TelegramPublisher] LLM short_rewrite failed: %s', $e->getMessage() )
-				);
+				jep_automacao()->logger()->warning( 'telegram_publisher', sprintf( '[TelegramPublisher] LLM short_rewrite failed: %s', $e->getMessage() ) );
 			}
 		}
 
@@ -546,9 +540,7 @@ class JEP_Telegram_Publisher {
 				$title_b = ! empty( $result['title_b'] ) ? $result['title_b'] : $title . ' – análise';
 				$description = ! empty( $result['excerpt'] ) ? $result['excerpt'] : $description;
 			} catch ( Exception $e ) {
-				jep_automacao()->logger()->warning(
-					sprintf( '[TelegramPublisher] rewrite_rss_item failed: %s', $e->getMessage() )
-				);
+				jep_automacao()->logger()->warning( 'telegram_publisher', sprintf( '[TelegramPublisher] rewrite_rss_item failed: %s', $e->getMessage() ) );
 				$title_b = $title . ' – análise';
 			}
 		} else {
@@ -625,9 +617,7 @@ class JEP_Telegram_Publisher {
 				$content_html = ! empty( $result['content_html'] ) ? $result['content_html'] : $content_html;
 				$excerpt      = ! empty( $result['excerpt'] ) ? $result['excerpt'] : $excerpt;
 			} catch ( Exception $e ) {
-				jep_automacao()->logger()->warning(
-					sprintf( '[TelegramPublisher] Text rewrite failed: %s', $e->getMessage() )
-				);
+				jep_automacao()->logger()->warning( 'telegram_publisher', sprintf( '[TelegramPublisher] Text rewrite failed: %s', $e->getMessage() ) );
 			}
 		}
 
@@ -952,12 +942,10 @@ class JEP_Telegram_Publisher {
 
 		// Unrecognised callback.
 		$this->bot->answer_callback_query( $callback_id, 'Ação não reconhecida.', true );
-		jep_automacao()->logger()->warning(
-			sprintf(
+		jep_automacao()->logger()->warning( 'telegram_publisher', sprintf(
 				'[TelegramPublisher] Unrecognised edit callback: "%s"',
 				$callback_data
-			)
-		);
+			) );
 	}
 
 	// -------------------------------------------------------------------------
@@ -999,9 +987,7 @@ class JEP_Telegram_Publisher {
 			$file_info = $this->bot->api_call( 'getFile', [ 'file_id' => $file_id ] );
 		} catch ( Exception $e ) {
 			$this->bot->send_to_editor( '❌ Não foi possível obter o arquivo da foto.' );
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramPublisher] getFile failed for image replacement (post %d): %s', $post_id, $e->getMessage() )
-			);
+			jep_automacao()->logger()->error( 'telegram_publisher', sprintf( '[TelegramPublisher] getFile failed for image replacement (post %d): %s', $post_id, $e->getMessage() ) );
 			return;
 		}
 
@@ -1028,13 +1014,11 @@ class JEP_Telegram_Publisher {
 		// 3. Set as the post featured image.
 		set_post_thumbnail( $post_id, $attachment_id );
 
-		jep_automacao()->logger()->info(
-			sprintf(
+		jep_automacao()->logger()->info( 'telegram_publisher', sprintf(
 				'[TelegramPublisher] Featured image replaced for post %d (attachment %d).',
 				$post_id,
 				$attachment_id
-			)
-		);
+			) );
 
 		$this->bot->send_to_editor(
 			sprintf(
