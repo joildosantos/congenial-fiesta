@@ -235,7 +235,7 @@ class JEP_Rest_Api {
         }
 
         $data = [
-            'version'     => JEP_VERSION,
+            'version'     => JEP_AUTOMACAO_VERSION,
             'modules'     => $modules,
             'log_summary' => $log_summary,
             'cron_status' => $cron_status,
