@@ -208,13 +208,14 @@
 			},
 			success: function (response) {
 				if (response.success) {
-					var msg = response.data.message || 'OK';
+					var msg = response.data.response || response.data.message || 'OK';
 					if (response.data.latency_ms) {
-						msg += ' (' + response.data.latency_ms + ' ms)';
+						msg = 'OK (' + response.data.latency_ms + ' ms) — ' + msg;
 					}
 					showFeedback($feedback, msg, 'success');
 				} else {
-					showFeedback($feedback, response.data.message || 'Erro.', 'error');
+					var err = response.data && (response.data.response || response.data.message);
+					showFeedback($feedback, err || 'Erro ao testar provedor.', 'error');
 				}
 			},
 			error: function () {

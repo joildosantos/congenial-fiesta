@@ -73,9 +73,7 @@ class JEP_Telegram_Approval {
 		);
 
 		if ( empty( $approval ) ) {
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramApproval] send_for_approval: record %d not found.', $approval_id )
-			);
+			jep_automacao()->logger()->error( 'telegram_approval', sprintf( '[TelegramApproval] send_for_approval: record %d not found.', $approval_id ) );
 			return false;
 		}
 
@@ -125,24 +123,20 @@ class JEP_Telegram_Approval {
 				);
 			}
 
-			jep_automacao()->logger()->info(
-				sprintf(
+			jep_automacao()->logger()->info( 'telegram_approval', sprintf(
 					'[TelegramApproval] Sent approval %d to editor (msg_id: %d).',
 					$approval_id,
 					$telegram_message_id
-				)
-			);
+				) );
 
 			return true;
 
 		} catch ( Exception $e ) {
-			jep_automacao()->logger()->error(
-				sprintf(
+			jep_automacao()->logger()->error( 'telegram_approval', sprintf(
 					'[TelegramApproval] Failed to send approval %d: %s',
 					$approval_id,
 					$e->getMessage()
-				)
-			);
+				) );
 			return false;
 		}
 	}
@@ -204,9 +198,7 @@ class JEP_Telegram_Approval {
 		);
 
 		if ( false === $result ) {
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramApproval] create_approval DB insert failed: %s', $wpdb->last_error )
-			);
+			jep_automacao()->logger()->error( 'telegram_approval', sprintf( '[TelegramApproval] create_approval DB insert failed: %s', $wpdb->last_error ) );
 			return false;
 		}
 
@@ -283,20 +275,16 @@ class JEP_Telegram_Approval {
 		);
 
 		if ( empty( $approval ) ) {
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramApproval] approve: record %d not found.', $approval_id )
-			);
+			jep_automacao()->logger()->error( 'telegram_approval', sprintf( '[TelegramApproval] approve: record %d not found.', $approval_id ) );
 			return false;
 		}
 
 		if ( 'pending' !== $approval['status'] ) {
-			jep_automacao()->logger()->warning(
-				sprintf(
+			jep_automacao()->logger()->warning( 'telegram_approval', sprintf(
 					'[TelegramApproval] approve: record %d already has status "%s".',
 					$approval_id,
 					$approval['status']
-				)
-			);
+				) );
 			return false;
 		}
 
@@ -314,14 +302,12 @@ class JEP_Telegram_Approval {
 			[ '%d' ]
 		);
 
-		jep_automacao()->logger()->info(
-			sprintf(
+		jep_automacao()->logger()->info( 'telegram_approval', sprintf(
 				'[TelegramApproval] Approval %d approved with variant "%s": %s',
 				$approval_id,
 				$variant,
 				$approved_title
-			)
-		);
+			) );
 
 		// Edit the Telegram message to show the confirmation banner.
 		if ( ! empty( $approval['telegram_message_id'] ) ) {
@@ -339,13 +325,11 @@ class JEP_Telegram_Approval {
 				);
 			} catch ( Exception $e ) {
 				// Non-fatal: log but continue with publication.
-				jep_automacao()->logger()->warning(
-					sprintf(
+				jep_automacao()->logger()->warning( 'telegram_approval', sprintf(
 						'[TelegramApproval] Could not edit message for approval %d: %s',
 						$approval_id,
 						$e->getMessage()
-					)
-				);
+					) );
 			}
 		}
 
@@ -370,9 +354,7 @@ class JEP_Telegram_Approval {
 		);
 
 		if ( empty( $approval ) ) {
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramApproval] reject: record %d not found.', $approval_id )
-			);
+			jep_automacao()->logger()->error( 'telegram_approval', sprintf( '[TelegramApproval] reject: record %d not found.', $approval_id ) );
 			return false;
 		}
 
@@ -387,9 +369,7 @@ class JEP_Telegram_Approval {
 			[ '%d' ]
 		);
 
-		jep_automacao()->logger()->info(
-			sprintf( '[TelegramApproval] Approval %d rejected.', $approval_id )
-		);
+		jep_automacao()->logger()->info( 'telegram_approval', sprintf( '[TelegramApproval] Approval %d rejected.', $approval_id ) );
 
 		// Edit the Telegram message to show the rejection banner.
 		if ( ! empty( $approval['telegram_message_id'] ) ) {
@@ -407,13 +387,11 @@ class JEP_Telegram_Approval {
 					'Markdown'
 				);
 			} catch ( Exception $e ) {
-				jep_automacao()->logger()->warning(
-					sprintf(
+				jep_automacao()->logger()->warning( 'telegram_approval', sprintf(
 						'[TelegramApproval] Could not edit rejection message for approval %d: %s',
 						$approval_id,
 						$e->getMessage()
-					)
-				);
+					) );
 			}
 		}
 
@@ -445,9 +423,7 @@ class JEP_Telegram_Approval {
 		);
 
 		if ( empty( $approval ) ) {
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramApproval] publish_approved: record %d not found.', $approval_id )
-			);
+			jep_automacao()->logger()->error( 'telegram_approval', sprintf( '[TelegramApproval] publish_approved: record %d not found.', $approval_id ) );
 			return false;
 		}
 
@@ -470,13 +446,11 @@ class JEP_Telegram_Approval {
 		$post_id = wp_insert_post( $post_data, true );
 
 		if ( is_wp_error( $post_id ) ) {
-			jep_automacao()->logger()->error(
-				sprintf(
+			jep_automacao()->logger()->error( 'telegram_approval', sprintf(
 					'[TelegramApproval] publish_approved: wp_insert_post failed for approval %d: %s',
 					$approval_id,
 					$post_id->get_error_message()
-				)
-			);
+				) );
 			return false;
 		}
 
@@ -529,13 +503,11 @@ class JEP_Telegram_Approval {
 					);
 				}
 			} catch ( Exception $e ) {
-				jep_automacao()->logger()->warning(
-					sprintf(
+				jep_automacao()->logger()->warning( 'telegram_approval', sprintf(
 						'[TelegramApproval] Social card generation failed for post %d: %s',
 						$post_id,
 						$e->getMessage()
-					)
-				);
+					) );
 			}
 		}
 
@@ -571,13 +543,11 @@ class JEP_Telegram_Approval {
 				$this->bot->send_to_channel( $channel_caption );
 			}
 		} catch ( Exception $e ) {
-			jep_automacao()->logger()->warning(
-				sprintf(
+			jep_automacao()->logger()->warning( 'telegram_approval', sprintf(
 					'[TelegramApproval] Failed to send post %d to channel: %s',
 					$post_id,
 					$e->getMessage()
-				)
-			);
+				) );
 		}
 
 		// ------------------------------------------------------------------
@@ -588,13 +558,11 @@ class JEP_Telegram_Approval {
 			try {
 				JEP_Instagram_Publisher::prepare( $post_id, $approval_id );
 			} catch ( Exception $e ) {
-				jep_automacao()->logger()->warning(
-					sprintf(
+				jep_automacao()->logger()->warning( 'telegram_approval', sprintf(
 						'[TelegramApproval] Instagram prepare failed for post %d: %s',
 						$post_id,
 						$e->getMessage()
-					)
-				);
+					) );
 			}
 		}
 
@@ -613,14 +581,12 @@ class JEP_Telegram_Approval {
 			[ '%d' ]
 		);
 
-		jep_automacao()->logger()->info(
-			sprintf(
+		jep_automacao()->logger()->info( 'telegram_approval', sprintf(
 				'[TelegramApproval] Approval %d published as post ID %d: "%s".',
 				$approval_id,
 				$post_id,
 				$approved_title
-			)
-		);
+			) );
 
 		do_action( 'jep_approval_published', $approval_id, $post_id, $approval );
 

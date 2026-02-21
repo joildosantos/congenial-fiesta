@@ -130,7 +130,7 @@ class JEP_Prompt_Evaluator {
 		$response = $llm ? $llm->complete( $meta_prompt, [ 'priority' => 'low' ] ) : '';
 
 		if ( empty( $response ) ) {
-			$this->logger->warning( 'Prompt Evaluator: LLM não retornou avaliação.' );
+			$this->logger->warning( 'prompt_evaluator', 'Prompt Evaluator: LLM não retornou avaliação.' );
 			return null;
 		}
 
@@ -145,10 +145,8 @@ class JEP_Prompt_Evaluator {
 		$score_total = (int) ( $evaluation['score_total'] ?? 0 );
 
 		if ( $score_total < 6 ) {
-			$this->logger->warning(
-				sprintf( 'Prompt Evaluator: qualidade baixa detectada (score %d/10) em %s.', $score_total, $prompt_type ),
-				[ 'record_id' => $record_id, 'prompt_type' => $prompt_type ]
-			);
+			$this->logger->warning( 'prompt_evaluator', sprintf( 'Prompt Evaluator: qualidade baixa detectada (score %d/10) em %s.', $score_total, $prompt_type ),
+				[ 'record_id' => $record_id, 'prompt_type' => $prompt_type ] );
 
 			$message = sprintf(
 				"⚠️ Qualidade baixa detectada (score %d/10) em %s",
@@ -376,10 +374,8 @@ class JEP_Prompt_Evaluator {
 
 		update_option( $option_key, $versions, false );
 
-		$this->logger->info(
-			sprintf( 'Prompt Evaluator: nova versão salva para tipo "%s".', $prompt_type ),
-			[ 'version' => $next_version ]
-		);
+		$this->logger->info( 'prompt_evaluator', sprintf( 'Prompt Evaluator: nova versão salva para tipo "%s".', $prompt_type ),
+			[ 'version' => $next_version ] );
 	}
 
 	// -------------------------------------------------------------------------
@@ -425,7 +421,7 @@ META;
 		$end   = strrpos( $json_string, '}' );
 
 		if ( false === $start || false === $end ) {
-			$this->logger->warning( 'Prompt Evaluator: JSON não encontrado na resposta da avaliação.' );
+			$this->logger->warning( 'prompt_evaluator', 'Prompt Evaluator: JSON não encontrado na resposta da avaliação.' );
 			return null;
 		}
 
@@ -433,10 +429,8 @@ META;
 		$decoded     = json_decode( $json_string, true );
 
 		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-			$this->logger->warning(
-				'Prompt Evaluator: resposta JSON inválida.',
-				[ 'json_error' => json_last_error_msg() ]
-			);
+			$this->logger->warning( 'prompt_evaluator', 'Prompt Evaluator: resposta JSON inválida.',
+				[ 'json_error' => json_last_error_msg() ] );
 			return null;
 		}
 

@@ -88,9 +88,7 @@ class JEP_Telegram_Bot {
 
 		if ( is_wp_error( $response ) ) {
 			$error_message = $response->get_error_message();
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramBot] HTTP error on method "%s": %s', $method, $error_message )
-			);
+			jep_automacao()->logger()->error( 'telegram', sprintf( '[TelegramBot] HTTP error on method "%s": %s', $method, $error_message ) );
 			throw new RuntimeException(
 				sprintf( 'Telegram API HTTP error (%s): %s', $method, $error_message )
 			);
@@ -101,9 +99,7 @@ class JEP_Telegram_Bot {
 		$decoded   = json_decode( $body, true );
 
 		if ( JSON_ERROR_NONE !== json_last_error() ) {
-			jep_automacao()->logger()->error(
-				sprintf( '[TelegramBot] Invalid JSON response on method "%s": %s', $method, $body )
-			);
+			jep_automacao()->logger()->error( 'telegram', sprintf( '[TelegramBot] Invalid JSON response on method "%s": %s', $method, $body ) );
 			throw new RuntimeException(
 				sprintf( 'Telegram API returned invalid JSON for method "%s".', $method )
 			);
@@ -112,14 +108,12 @@ class JEP_Telegram_Bot {
 		if ( empty( $decoded['ok'] ) ) {
 			$tg_error = isset( $decoded['description'] ) ? $decoded['description'] : 'Unknown Telegram error';
 			$tg_code  = isset( $decoded['error_code'] ) ? $decoded['error_code'] : $http_code;
-			jep_automacao()->logger()->error(
-				sprintf(
+			jep_automacao()->logger()->error( 'telegram', sprintf(
 					'[TelegramBot] API error on method "%s" (code %d): %s',
 					$method,
 					$tg_code,
 					$tg_error
-				)
-			);
+				) );
 			throw new RuntimeException(
 				sprintf( 'Telegram API error [%d] on method "%s": %s', $tg_code, $method, $tg_error )
 			);

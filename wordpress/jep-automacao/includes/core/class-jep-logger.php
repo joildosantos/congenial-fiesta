@@ -40,7 +40,7 @@ class JEP_Logger {
 	 * @param array      $context Dados adicionais (opcional).
 	 * @return int|false ID do registro ou false em erro.
 	 */
-	public static function log( $event, $message, $level = self::LEVEL_INFO, $post_id = null, $context = array() ) {
+	public static function log( $event, $message = '', $level = self::LEVEL_INFO, $post_id = null, $context = array() ) {
 		global $wpdb;
 
 		return $wpdb->insert(
@@ -65,11 +65,8 @@ class JEP_Logger {
 	 * @param int|array|null $post_id ID do post ou array de contexto.
 	 * @param array          $context Contexto.
 	 */
-	public static function info( $event, $message, $post_id = null, $context = array() ) {
-		if ( is_array( $post_id ) ) {
-			$context = $post_id;
-			$post_id = null;
-		}
+	public static function info( $event, $message = '', $post_id = null, $context = array() ) {
+		self::_normalize( $event, $message, $post_id, $context );
 		self::log( $event, $message, self::LEVEL_INFO, $post_id, $context );
 	}
 
@@ -81,11 +78,8 @@ class JEP_Logger {
 	 * @param int|array|null $post_id ID do post ou array de contexto.
 	 * @param array          $context Contexto.
 	 */
-	public static function success( $event, $message, $post_id = null, $context = array() ) {
-		if ( is_array( $post_id ) ) {
-			$context = $post_id;
-			$post_id = null;
-		}
+	public static function success( $event, $message = '', $post_id = null, $context = array() ) {
+		self::_normalize( $event, $message, $post_id, $context );
 		self::log( $event, $message, self::LEVEL_SUCCESS, $post_id, $context );
 	}
 
@@ -97,11 +91,8 @@ class JEP_Logger {
 	 * @param int|array|null $post_id ID do post ou array de contexto.
 	 * @param array          $context Contexto.
 	 */
-	public static function warning( $event, $message, $post_id = null, $context = array() ) {
-		if ( is_array( $post_id ) ) {
-			$context = $post_id;
-			$post_id = null;
-		}
+	public static function warning( $event, $message = '', $post_id = null, $context = array() ) {
+		self::_normalize( $event, $message, $post_id, $context );
 		self::log( $event, $message, self::LEVEL_WARNING, $post_id, $context );
 	}
 
@@ -113,11 +104,8 @@ class JEP_Logger {
 	 * @param int|array|null $post_id ID do post ou array de contexto.
 	 * @param array          $context Contexto.
 	 */
-	public static function error( $event, $message, $post_id = null, $context = array() ) {
-		if ( is_array( $post_id ) ) {
-			$context = $post_id;
-			$post_id = null;
-		}
+	public static function error( $event, $message = '', $post_id = null, $context = array() ) {
+		self::_normalize( $event, $message, $post_id, $context );
 		self::log( $event, $message, self::LEVEL_ERROR, $post_id, $context );
 	}
 
@@ -129,8 +117,40 @@ class JEP_Logger {
 	 * @param int|array|null $post_id ID do post ou array de contexto.
 	 * @param array          $context Contexto.
 	 */
-	public static function debug( $event, $message, $post_id = null, $context = array() ) {
+	public static function debug( $event, $message = '', $post_id = null, $context = array() ) {
 		self::info( $event, $message, $post_id, $context );
+	}
+
+	/**
+	 * Normaliza argumentos para suportar chamadas legadas com assinatura incorreta:
+	 *   info('mensagem')               -> event='plugin', message='mensagem'
+	 *   info('mensagem', ['contexto']) -> event='plugin', message='mensagem', context=[...]
+	 *   info('event', 'mensagem', ['contexto']) -> post_id=context
+	 *
+	 * @param string         $event   Passed by reference.
+	 * @param string         $message Passed by reference.
+	 * @param int|array|null $post_id Passed by reference.
+	 * @param array          $context Passed by reference.
+	 */
+	private static function _normalize( &$event, &$message, &$post_id, &$context ) {
+		// info('mensagem', ['contexto']) — second arg is array, treat as context.
+		if ( is_array( $message ) ) {
+			$context = $message;
+			$message = $event;
+			$event   = 'plugin';
+		}
+
+		// info('mensagem') — message omitted, treat first arg as message.
+		if ( '' === $message ) {
+			$message = $event;
+			$event   = 'plugin';
+		}
+
+		// Third arg is array (context passed in post_id position).
+		if ( is_array( $post_id ) ) {
+			$context = $post_id;
+			$post_id = null;
+		}
 	}
 
 	/**
